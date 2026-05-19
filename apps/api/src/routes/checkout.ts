@@ -3,7 +3,12 @@ import type { FastifyPluginAsync } from 'fastify'
 import { checkoutBodySchema } from '@tpc/lib/validators'
 import { canInstall, totalCreditedPoints } from '@tpc/lib/business'
 
-import { BusinessError, NotFoundError, UnauthorizedError } from '../lib/errors.js'
+import {
+  BusinessError,
+  ForbiddenError,
+  NotFoundError,
+  UnauthorizedError,
+} from '../lib/errors.js'
 import { createCardPreference, createPixPayment } from '../lib/mercadopago.js'
 
 export const checkoutRoutes: FastifyPluginAsync = async (app) => {
@@ -18,6 +23,7 @@ export const checkoutRoutes: FastifyPluginAsync = async (app) => {
       throw new NotFoundError('Package')
     }
 
+    let cardToken = body.cardToken
     if (body.method === 'card') {
       const installments = body.installments ?? 1
       if (!canInstall(pkg, installments)) {
@@ -26,13 +32,21 @@ export const checkoutRoutes: FastifyPluginAsync = async (app) => {
           'Parcelamento não permitido para este pacote ou número de parcelas.',
         )
       }
+
+      // 1-click flow: resolve cardToken a partir de SavedCard.
+      if (body.savedCardId) {
+        const saved = await app.prisma.savedCard.findFirst({
+          where: { id: body.savedCardId, deletedAt: null },
+        })
+        if (!saved) throw new NotFoundError('SavedCard')
+        if (saved.userId !== user.id) throw new ForbiddenError('Cartão não pertence ao usuário')
+        cardToken = saved.mpCardToken
+      }
     }
 
     const pointsCredited = totalCreditedPoints(pkg)
 
     // Cria Purchase ANTES de chamar MP pra ter um ID estável de external_reference.
-    // mpTransactionId vai ser preenchido logo depois. Inicialmente usamos o uuid
-    // do Purchase como placeholder pro unique constraint.
     const purchase = await app.prisma.purchase.create({
       data: {
         userId: user.id,
@@ -44,6 +58,12 @@ export const checkoutRoutes: FastifyPluginAsync = async (app) => {
         pointsCredited,
         status: 'PENDING',
         cpfCnpj: body.cpfCnpj ?? null,
+        // Snapshot só é persistido se cliente pediu pra salvar E é cartão novo
+        // (1-click não precisa salvar de novo).
+        saveCardSnapshot:
+          body.method === 'card' && body.saveCard && body.card && !body.savedCardId
+            ? { ...body.card, mpCardToken: body.cardToken }
+            : undefined,
       },
     })
 
@@ -84,7 +104,7 @@ export const checkoutRoutes: FastifyPluginAsync = async (app) => {
         externalReference: purchase.id,
         payerEmail: user.email,
         installments: body.installments ?? 1,
-        cardToken: body.cardToken,
+        cardToken,
         cpfCnpj: body.cpfCnpj ?? null,
       })
 
@@ -104,6 +124,7 @@ export const checkoutRoutes: FastifyPluginAsync = async (app) => {
         checkoutUrl: result.checkoutUrl,
         expiresAt: result.expiresAt,
         amountCents: result.amountCents,
+        savedCardUsed: Boolean(body.savedCardId),
       }
     } catch (err) {
       // Se MP falhou, marca Purchase como rejected pra não ficar zumbi.
