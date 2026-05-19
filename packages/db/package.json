@@ -16,7 +16,7 @@
     "studio": "prisma studio",
     "reset": "prisma migrate reset --force",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run --passWithNoTests"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
