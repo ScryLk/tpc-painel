@@ -1,0 +1,469 @@
+// TPC Painel — Prisma schema
+// Source of truth do dominio. Migrations geradas em prisma/migrations/.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// Enums
+// ============================================================================
+
+enum Role {
+  CUSTOMER
+  STAFF
+  ADMIN
+}
+
+enum MapState {
+  STOCK
+  STAGE1
+  STAGE2
+  STAGE3
+}
+
+enum Slot {
+  MANHA
+  TARDE
+}
+
+enum ServiceCategory {
+  PERFORMANCE
+  AESTHETIC
+  CONFIG
+}
+
+enum SolicitacaoStatus {
+  PENDENTE
+  CONFIRMADA
+  EM_EXEC
+  CONCLUIDA
+  CANCELADA
+}
+
+enum RemapOrderStatus {
+  AWAITING_QUOTE
+  QUOTE_SENT
+  ANALYZING
+  MAPPING
+  AWAITING_REVIEW
+  APPROVED
+  NEEDS_REVISION
+  CANCELLED
+}
+
+enum RemapFileKind {
+  ORIGINAL
+  MODIFIED
+  ATTACHMENT
+  REPORT
+}
+
+enum MessageSenderType {
+  CUSTOMER
+  TPC_STAFF
+  SYSTEM
+}
+
+enum TransactionType {
+  CREDIT
+  DEBIT
+  RESERVE
+  UNRESERVE
+}
+
+enum PurchaseStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REFUNDED
+}
+
+enum MpPaymentMethod {
+  PIX
+  CREDIT_CARD
+}
+
+enum DataExportStatus {
+  PROCESSING
+  READY
+  FAILED
+  EXPIRED
+}
+
+// ============================================================================
+// Core / Auth
+// ============================================================================
+
+model User {
+  id              String    @id @default(uuid())
+  clerkId         String    @unique
+  email           String    @unique
+  name            String
+  phone           String?
+  role            Role      @default(CUSTOMER)
+  pendingDeletion Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  cars            Car[]
+  purchases       Purchase[]
+  balance         PointsBalance?
+  reservations    Reservation[]
+  transactions    Transaction[]
+  savedCards      SavedCard[]
+  solicitacoes    Solicitacao[]
+  remapOrders     RemapOrder[]
+  messages        Message[]
+  exportRequests  DataExportRequest[]
+  deletionRequest AccountDeletion?
+  consent         Consent?
+
+  @@index([deletedAt])
+}
+
+model Car {
+  id        String    @id @default(uuid())
+  userId    String
+  brand     String
+  model     String
+  year      Int
+  motorType String
+  plate     String
+  color     String?
+  isActive  Boolean   @default(true)
+  mapState  MapState  @default(STOCK)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  user         User          @relation(fields: [userId], references: [id])
+  solicitacoes Solicitacao[]
+  remapOrders  RemapOrder[]
+
+  @@unique([userId, plate])
+  @@index([userId, isActive])
+}
+
+// Catalogo presencial. 12 servicos no MVP.
+model Service {
+  id               String          @id @default(uuid())
+  slug             String          @unique
+  name             String
+  description      String
+  category         ServiceCategory
+  pts              Int
+  priceAvulsoCents Int             @default(0)
+  motorTypes       String[]
+  durationDays     Int             @default(1)
+  popular          Boolean         @default(false)
+  active           Boolean         @default(true)
+  sortOrder        Int             @default(0)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  solicitacoes Solicitacao[]
+
+  @@index([active, sortOrder])
+}
+
+// Catalogo por arquivo. 9 servicos + 1 custom no MVP.
+model RemapService {
+  id          String   @id @default(uuid())
+  slug        String   @unique
+  name        String
+  description String
+  pts         Int
+  supports    String[]
+  isCustom    Boolean  @default(false)
+  active      Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  remapOrders RemapOrder[]
+
+  @@index([active, sortOrder])
+}
+
+// Pacotes de pontos. 4 tiers fixos.
+model Package {
+  id          String   @id @default(uuid())
+  tier        String   @unique
+  name        String
+  points      Int
+  priceCents  Int
+  bonusPoints Int      @default(0)
+  bonusPct    Int      @default(0)
+  popular     Boolean  @default(false)
+  active      Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  purchases Purchase[]
+
+  @@index([active, sortOrder])
+}
+
+// ============================================================================
+// Carteira / Transacoes
+// ============================================================================
+
+model Purchase {
+  id              String          @id @default(uuid())
+  userId          String
+  packageId       String
+  mpTransactionId String          @unique
+  mpPaymentMethod MpPaymentMethod
+  amountCents     Int
+  installments    Int             @default(1)
+  pointsCredited  Int
+  status          PurchaseStatus  @default(PENDING)
+  cpfCnpj         String?
+  paidAt          DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id])
+  package      Package       @relation(fields: [packageId], references: [id])
+  transactions Transaction[]
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([status])
+}
+
+// Saldo do usuario. available + reserved gerenciados em transacao SERIALIZABLE.
+// CHECK constraints (available >= 0, reserved >= 0) aplicadas via migration SQL.
+model PointsBalance {
+  userId    String   @id
+  available Int      @default(0)
+  reserved  Int      @default(0)
+  version   Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+// Pontos reservados, aguardando confirmacao TPC (presencial) ou aprovacao cliente (remap).
+// Expira em 24h se for solicitacao presencial sem confirmacao.
+model Reservation {
+  id            String       @id @default(uuid())
+  userId        String
+  amount        Int
+  solicitacaoId String?
+  remapOrderId  String?
+  expiresAt     DateTime?
+  releasedAt    DateTime?
+  createdAt     DateTime     @default(now())
+
+  user         User          @relation(fields: [userId], references: [id])
+  solicitacao  Solicitacao?  @relation(fields: [solicitacaoId], references: [id])
+  remapOrder   RemapOrder?   @relation(fields: [remapOrderId], references: [id])
+  transactions Transaction[]
+
+  @@index([userId, releasedAt])
+  @@index([expiresAt])
+}
+
+// Append-only audit log. Nao update nem delete.
+model Transaction {
+  id            String          @id @default(uuid())
+  userId        String
+  type          TransactionType
+  amount        Int
+  balanceAfter  Int
+  purchaseId    String?
+  solicitacaoId String?
+  remapOrderId  String?
+  reservationId String?
+  metadata      Json?
+  createdAt     DateTime        @default(now())
+
+  user        User         @relation(fields: [userId], references: [id])
+  purchase    Purchase?    @relation(fields: [purchaseId], references: [id])
+  solicitacao Solicitacao? @relation(fields: [solicitacaoId], references: [id])
+  remapOrder  RemapOrder?  @relation(fields: [remapOrderId], references: [id])
+  reservation Reservation? @relation(fields: [reservationId], references: [id])
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([type])
+}
+
+// Cartoes tokenizados via Mercado Pago. NUNCA armazena PAN.
+model SavedCard {
+  id          String    @id @default(uuid())
+  userId      String
+  mpCardToken String
+  brand       String
+  lastFour    String
+  holderName  String
+  expMonth    Int
+  expYear     Int
+  isDefault   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  deletedAt   DateTime?
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, deletedAt])
+}
+
+// ============================================================================
+// Pedidos presenciais
+// ============================================================================
+
+model Solicitacao {
+  id             String            @id @default(uuid())
+  userId         String
+  carId          String
+  serviceId      String
+  status         SolicitacaoStatus @default(PENDENTE)
+  scheduledDate  DateTime
+  slot           Slot
+  observations   String?
+  pointsReserved Int               @default(0)
+  pointsDebited  Int               @default(0)
+  confirmedAt    DateTime?
+  cancelledAt    DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id])
+  car          Car           @relation(fields: [carId], references: [id])
+  service      Service       @relation(fields: [serviceId], references: [id])
+  reservations Reservation[]
+  transactions Transaction[]
+
+  @@index([userId, status])
+  @@index([scheduledDate])
+  @@index([status, scheduledDate])
+}
+
+// ============================================================================
+// Pedidos por arquivo (file service)
+// ============================================================================
+
+model RemapOrder {
+  id             String           @id @default(uuid())
+  userId         String
+  carId          String?
+  remapServiceId String?
+  status         RemapOrderStatus @default(AWAITING_QUOTE)
+  isCustomQuote  Boolean          @default(false)
+  ecuModel       String?
+  hardwareUsed   String?
+  readMode       String?
+  vehicleVin     String?
+  mileage        Int?
+  description    String?
+  quotePoints    Int?
+  quoteExpiresAt DateTime?
+  pointsReserved Int              @default(0)
+  pointsDebited  Int              @default(0)
+  approvedAt     DateTime?
+  cancelledAt    DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id])
+  car          Car?          @relation(fields: [carId], references: [id])
+  remapService RemapService? @relation(fields: [remapServiceId], references: [id])
+  files        RemapFile[]
+  messages     Message[]
+  reservations Reservation[]
+  transactions Transaction[]
+
+  @@index([userId, status])
+  @@index([status])
+}
+
+model RemapFile {
+  id           String        @id @default(uuid())
+  remapOrderId String
+  kind         RemapFileKind
+  r2Key        String
+  sha256       String
+  fileName     String
+  fileSize     Int
+  mimeType     String
+  createdAt    DateTime      @default(now())
+  deletedAt    DateTime?
+
+  remapOrder RemapOrder @relation(fields: [remapOrderId], references: [id])
+  messages   Message[]
+
+  @@index([remapOrderId, kind])
+  @@index([sha256])
+}
+
+model Message {
+  id           String            @id @default(uuid())
+  remapOrderId String
+  senderUserId String?
+  senderType   MessageSenderType
+  body         String
+  fileId       String?
+  readAt       DateTime?
+  createdAt    DateTime          @default(now())
+
+  remapOrder RemapOrder @relation(fields: [remapOrderId], references: [id])
+  sender     User?      @relation(fields: [senderUserId], references: [id])
+  file       RemapFile? @relation(fields: [fileId], references: [id])
+
+  @@index([remapOrderId, createdAt])
+}
+
+// ============================================================================
+// LGPD
+// ============================================================================
+
+model DataExportRequest {
+  id        String           @id @default(uuid())
+  userId    String
+  status    DataExportStatus @default(PROCESSING)
+  r2Key     String?
+  expiresAt DateTime?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+model AccountDeletion {
+  id           String    @id @default(uuid())
+  userId       String    @unique
+  reason       String?
+  scheduledFor DateTime
+  executedAt   DateTime?
+  cancelledAt  DateTime?
+  createdAt    DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([scheduledFor, executedAt])
+}
+
+// Marketing default OFF, transacional default ON. NAO inverter (LGPD).
+model Consent {
+  userId                String   @id
+  marketingEmail        Boolean  @default(false)
+  marketingWhatsapp     Boolean  @default(false)
+  transactionalPush     Boolean  @default(true)
+  transactionalEmail    Boolean  @default(true)
+  transactionalWhatsapp Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+}
