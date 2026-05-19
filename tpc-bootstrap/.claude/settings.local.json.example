@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "_comment": "Arquivo pessoal do Lucas. Copia pra settings.local.json (já gitignored).",
+  "_comment_2": "Adiciona aqui permissões/configs que NÃO quer compartilhar com o time.",
+  "permissions": {
+    "allow": [],
+    "deny": []
+  }
+}

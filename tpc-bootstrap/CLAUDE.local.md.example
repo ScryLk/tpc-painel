@@ -1,0 +1,84 @@
+# Preferências do Lucas
+
+> Arquivo pessoal. Copia pra `CLAUDE.local.md` (já gitignored).
+> Conteúdo daqui sobrepõe defaults do CLAUDE.md em conflito.
+
+## Tom de voz comigo
+
+- Conversa em **português brasileiro informal**. Sem "vossa mercê", sem
+  "prezado", sem "outrossim". Tipo bate-papo de dev com dev.
+- **Não use em-dashes** (—). Vírgula, ponto, ou dois-pontos resolvem.
+- Quando errar, não fica pedindo desculpa repetidamente. Reconhece, corrige,
+  segue. Acabou.
+- Pode discordar de mim quando achar que tô errado. Argumenta direto, sem
+  rodeios. "Lucas, isso vai dar problema porque X" é melhor que "talvez
+  pudéssemos considerar...".
+- Quando eu falar "vai com tuas sugestões" significa: não me pergunta de
+  novo, executa.
+
+## Código e commits em inglês
+
+Variáveis, funções, comentários técnicos, mensagens de commit, nomes de
+arquivo: tudo em inglês. UI/copy pro cliente final: português.
+
+## Estilo de código
+
+- TypeScript strict
+- Functional first (não vai criando classe sem motivo)
+- Single quotes em JS/TS (`'foo'`, não `"foo"`)
+- Trailing commas em multiline (deixa diff mais limpo)
+- Não usa `default export` em components ou utils (named export sempre)
+  - Exceção: `page.tsx` e `layout.tsx` no Next.js, que exigem default
+- Imports ordenados: external deps → internal aliases (`@tpc/*`) → relativos
+- Sem `any`. Se tem mesmo que ser, comenta o porquê. `unknown` é melhor.
+- Não usa `print debugging` em código commitado. Usa logger estruturado
+  (Pino no backend, console no front durante dev). Remove antes de commit.
+
+## Comandos preferidos
+
+- **Sempre `pnpm`**, nunca `npm` ou `yarn`. Não falar em `npx`, usa `pnpm exec`.
+- **Postgres local via Docker**. `docker compose up -d postgres redis`.
+  Não instala Postgres nativo na máquina.
+- **Testes**: `pnpm test` (script consolidado). Não invoca `vitest` direto.
+- **Git só `git`**. Não usa `gh` (GitHub CLI). PRs faço manual no browser.
+
+## Workflow
+
+- Dev em branches. `main` é protegida.
+- PR antes de merge. Self-review se for trabalho solo.
+- Commit pequeno frequente é melhor que commitão.
+- Nunca force push em `main`.
+
+## Coisas que me irritam
+
+- Resposta longa demais quando pedi resumo. "Sucinto" significa sucinto.
+- Sugestão genérica tipo "isso depende do contexto". Eu sei que depende.
+  Dá uma sugestão e fundamenta.
+- Boilerplate desnecessário. Não cria 8 arquivos pra função de 10 linhas.
+- Comentários óbvios tipo `// increment counter` em cima de `counter++`.
+- Tabela de comparação quando 2 frases prosa resolvem.
+
+## Coisas que valorizo
+
+- Honestidade sobre limites/riscos. "Isso pode quebrar se X" me ajuda mais
+  que "vou implementar."
+- Trade-offs explícitos. Toda decisão tem custo, fala o custo.
+- Mostrar caminho mais simples primeiro. Otimização depois.
+- Reutilizar o que já existe. Antes de criar componente novo, conferir
+  `packages/ui` se algo serve.
+
+## Specs que tô codando agora (rotativo)
+
+> Atualiza essa seção quando começar/terminar feature.
+
+- [ ] Setup inicial do monorepo
+- [ ] Spec: `comprar-pontos.md`
+
+## Coisas pra lembrar dessa sessão
+
+- Wireframe está em `tpc-painel-v7.zip` (versão atual)
+- Sprites de carro do Gemini: pendente, vão pra `apps/web/public/sprites/`
+- TPC ainda não passou: preços avulso reais, CNPJ, WhatsApp Business API,
+  endereço da oficina
+- Modelo de negócio: cliente paga pontos, TPC executa físico, não tem
+  pagamento avulso pelo app
