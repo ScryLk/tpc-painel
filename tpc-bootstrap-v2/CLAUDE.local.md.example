@@ -76,9 +76,29 @@ arquivo: tudo em inglês. UI/copy pro cliente final: português.
 
 ## Coisas pra lembrar dessa sessão
 
-- Wireframe está em `tpc-painel-v7.zip` (versão atual)
+- Wireframe completo: `tpc-painel-v11.zip` (12 telas + variantes)
+- 2 canais de produto: presencial (oficina Panambi) + file service (remap por arquivo)
 - Sprites de carro do Gemini: pendente, vão pra `apps/web/public/sprites/`
-- TPC ainda não passou: preços avulso reais, CNPJ, WhatsApp Business API,
-  endereço da oficina
-- Modelo de negócio: cliente paga pontos, TPC executa físico, não tem
-  pagamento avulso pelo app
+- TPC ainda não passou: ver `CLAUDE.md` seção "Decisões pendentes" (12 itens)
+- Modelo de negócio: cliente paga em pontos, NÃO existe pagamento avulso no app
+- File service: cliente envia .bin, TPC mexe, devolve via chat real-time
+- Saldo tem 2 estados: available + reserved (com job que expira em 24h pra presencial)
+- Pedido custom de file service: orçamento prévio, sem reserva inicial
+- Histórico unifica presencial + file service + transações
+- Arquivos modificados ficam disponíveis pra sempre (não expiram)
+- LGPD: export dados + exclusão de conta + consentimentos granulares
+- Marketing default OFF, transacional default ON
+- Garagem: máximo 3 carros, 1 ativo por user, status sobrepõe se tem pedido
+
+## Stack que ficou definida
+
+- Monorepo pnpm + Turborepo
+- Backend: Fastify 5 + Prisma 6 + Postgres 16 + Redis 7 + BullMQ
+- Real-time: Socket.IO sobre Fastify
+- Frontend: Next.js 15 App Router + Tailwind v4 + Server Components first
+- Auth: Clerk com roles (cliente / tpc-staff / admin)
+- Pagamento: Mercado Pago (Pix + Cartão 3x sem juros)
+- Storage: Cloudflare R2 com signed URLs
+- Testes: Vitest + Testing Library
+- WhatsApp: Business API (provider definir)
+- Mobile: PWA no MVP, Expo depois
