@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import cors from '@fastify/cors'
 import Fastify, { type FastifyInstance } from 'fastify'
 
+import { startNotificationsWorker } from './jobs/index.js'
 import { env } from './lib/env.js'
 import authPlugin from './plugins/auth.js'
 import errorPlugin from './plugins/error.js'
@@ -45,6 +46,14 @@ export const buildServer = async (): Promise<FastifyInstance> => {
 
 const start = async () => {
   const app = await buildServer()
+
+  // Workers do BullMQ rodam no mesmo processo do Fastify por enquanto. Quando
+  // formos pra prod (Railway), separar em service dedicado.
+  const worker = startNotificationsWorker()
+  app.addHook('onClose', async () => {
+    await worker.close()
+  })
+
   try {
     await app.listen({ host: env.API_HOST, port: env.API_PORT })
   } catch (err) {

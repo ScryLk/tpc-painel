@@ -5,14 +5,7 @@ import { useEffect, useState } from 'react'
 
 import { useApi } from '@/lib/api/client'
 import { formatBRL, formatCountdown, formatPoints } from '@tpc/lib/formatters'
-import {
-  BackButton,
-  BrandPill,
-  Card,
-  ScreenChrome,
-  TPCHeader,
-  cn,
-} from '@tpc/ui'
+import { BackButton, Card, ScreenChrome, TPCHeader, cn } from '@tpc/ui'
 
 interface Purchase {
   id: string
@@ -248,37 +241,36 @@ function ExpiryTimer({ expiresAt }: { expiresAt: Date }) {
 function CardView({ purchase }: { purchase: Purchase }) {
   return (
     <Card elevated>
-      <div className="tpc-eyebrow mb-2">Pagamento por cartão</div>
-      <p className="text-sm text-tpc-text-secondary">
-        Em modo desenvolvimento o pagamento por cartão redireciona pra um checkout simulado do
-        Mercado Pago. Em produção esta tela vira o formulário com detecção de bandeira e
-        parcelamento (próximo PR).
+      <div className="flex items-center gap-2.5">
+        <span className="relative flex h-2.5 w-2.5">
+          <span className="absolute inset-0 animate-[tpc-pulse_1.8s_ease-in-out_infinite] rounded-full bg-tpc-yellow opacity-70" />
+          <span className="relative h-2.5 w-2.5 rounded-full bg-tpc-yellow" />
+        </span>
+        <div className="tpc-eyebrow !text-tpc-yellow">Processando pagamento</div>
+      </div>
+      <p className="mt-2 text-sm leading-relaxed text-tpc-text-secondary">
+        Estamos confirmando o cartão com o Mercado Pago. Assim que aprovado, os pontos
+        caem automaticamente.{' '}
+        {purchase.installments > 1 && (
+          <>
+            Parcelamento: {purchase.installments}x de{' '}
+            <span className="text-tpc-text">{formatBRL(Math.round(purchase.amountCents / purchase.installments))}</span> sem juros.
+          </>
+        )}
       </p>
 
-      <div className="mt-3 flex items-center gap-2">
-        <BrandPill kind="visa" />
-        <BrandPill kind="master" />
-        <BrandPill kind="elo" />
-      </div>
-
-      {purchase.checkoutUrl ? (
+      {purchase.checkoutUrl && (
         <a
           href={purchase.checkoutUrl}
           target="_blank"
           rel="noopener"
-          className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-tpc-red px-4 py-3.5 text-sm font-semibold tracking-tight text-tpc-text shadow-lg shadow-tpc-red/40 transition hover:bg-tpc-red-dark"
+          className="mt-4 flex items-center justify-center gap-2 rounded-xl border border-tpc-border bg-tpc-elevated-2 px-4 py-3 text-sm font-medium text-tpc-text-secondary transition hover:bg-tpc-elevated"
         >
-          Pagar {formatBRL(purchase.amountCents)}
-          {purchase.installments > 1 && (
-            <span className="font-mono text-[10px] text-tpc-text/80">
-              ({purchase.installments}x sem juros)
-            </span>
-          )}
+          Abrir Mercado Pago em nova aba
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M15 3h6v6M10 14L21 3M21 14v7H3V3h7" />
+          </svg>
         </a>
-      ) : (
-        <p className="mt-4 text-sm text-tpc-text-tertiary">
-          URL de checkout indisponível. Tenta voltar e gerar de novo.
-        </p>
       )}
     </Card>
   )

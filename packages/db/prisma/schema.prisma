@@ -232,6 +232,9 @@ model Purchase {
   qrCodeBase64    String?
   checkoutUrl     String?
   mpExpiresAt     DateTime?
+  // Snapshot do cartao quando o cliente pede "salvar pra proxima compra".
+  // Webhook usa pra criar SavedCard depois de APPROVED. Sempre null em pix.
+  saveCardSnapshot Json?
   paidAt          DateTime?
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
