@@ -227,6 +227,11 @@ model Purchase {
   pointsCredited  Int
   status          PurchaseStatus  @default(PENDING)
   cpfCnpj         String?
+  // Dados do checkout MP cacheados pra renderizar a tela sem nova chamada.
+  qrCode          String?
+  qrCodeBase64    String?
+  checkoutUrl     String?
+  mpExpiresAt     DateTime?
   paidAt          DateTime?
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt

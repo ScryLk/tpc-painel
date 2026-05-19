@@ -1,18 +1,63 @@
 @import 'tailwindcss';
 
 @theme {
-  --color-tpc-red: #dc2626;
-  --color-tpc-red-600: #b91c1c;
-  --color-tpc-ink: #0a0a0a;
-  --color-tpc-bg: #fafafa;
-  --color-tpc-border: #e5e7eb;
-  --color-tpc-green: #10b981;
-  --color-tpc-yellow: #f59e0b;
-  --color-tpc-gray-secondary: #6b7280;
-  --color-tpc-gray-tertiary: #9ca3af;
+  /* surfaces (dark) */
+  --color-tpc-bg: #000000;
+  --color-tpc-surface: #0a0a0a;
+  --color-tpc-elevated: #141414;
+  --color-tpc-elevated-2: #1a1a1a;
+  --color-tpc-border: rgba(255, 255, 255, 0.08);
+  --color-tpc-border-strong: rgba(255, 255, 255, 0.15);
 
+  /* text */
+  --color-tpc-text: #ebebeb;
+  --color-tpc-text-secondary: #888888;
+  --color-tpc-text-tertiary: #555555;
+
+  /* brand */
+  --color-tpc-red: #e1261c;
+  --color-tpc-red-dark: #a41b14;
+
+  /* status */
+  --color-tpc-green: #22e07a;
+  --color-tpc-yellow: #ffb800;
+
+  /* typography */
   --font-sans: var(--font-geist-sans), system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), monospace;
+  --font-mono: var(--font-geist-mono), ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* keyframes shared by interactive primitives */
+  --animate-tpc-pulse: tpc-pulse 1.8s ease-in-out infinite;
+  --animate-tpc-pulse-ring: tpc-pulse-ring 1.8s ease-out infinite;
+}
+
+@keyframes tpc-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+}
+
+@keyframes tpc-pulse-ring {
+  0% {
+    transform: scale(0.7);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+@keyframes tpc-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 html,
@@ -22,6 +67,32 @@ body {
 
 body {
   background-color: var(--color-tpc-bg);
-  color: var(--color-tpc-ink);
+  color: var(--color-tpc-text);
   font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Hide scrollbars for horizontal carousels while keeping them scrollable. */
+.tpc-scroll::-webkit-scrollbar {
+  display: none;
+}
+.tpc-scroll {
+  scrollbar-width: none;
+}
+
+/* Tabular numerics for balances, prices, timers. */
+.tpc-num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.04em;
+}
+
+/* Small monospace eyebrow labels used on cards (UPPERCASE + wide tracking). */
+.tpc-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-tpc-text-tertiary);
 }

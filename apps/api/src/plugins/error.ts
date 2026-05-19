@@ -1,11 +1,11 @@
 import fp from 'fastify-plugin'
-import type { FastifyPluginAsync } from 'fastify'
+import type { FastifyError, FastifyPluginAsync } from 'fastify'
 import { ZodError } from 'zod'
 
 import { HttpError, ValidationError } from '../lib/errors.js'
 
 const errorPlugin: FastifyPluginAsync = async (app) => {
-  app.setErrorHandler((err, request, reply) => {
+  app.setErrorHandler<FastifyError>((err, request, reply) => {
     if (err instanceof ValidationError) {
       return reply.status(err.statusCode).send({
         error: { code: err.code, message: err.message, details: err.details ?? null },

@@ -7,8 +7,12 @@ import { env } from './lib/env.js'
 import authPlugin from './plugins/auth.js'
 import errorPlugin from './plugins/error.js'
 import prismaPlugin from './plugins/prisma.js'
+import { checkoutRoutes } from './routes/checkout.js'
 import { healthRoutes } from './routes/health.js'
 import { meRoutes } from './routes/me.js'
+import { pacotesRoutes } from './routes/pacotes.js'
+import { purchaseRoutes } from './routes/purchases.js'
+import { webhookRoutes } from './routes/webhooks.js'
 
 export const buildServer = async (): Promise<FastifyInstance> => {
   const app = Fastify({
@@ -31,6 +35,10 @@ export const buildServer = async (): Promise<FastifyInstance> => {
 
   await app.register(healthRoutes)
   await app.register(meRoutes)
+  await app.register(pacotesRoutes)
+  await app.register(checkoutRoutes)
+  await app.register(purchaseRoutes)
+  await app.register(webhookRoutes)
 
   return app
 }
