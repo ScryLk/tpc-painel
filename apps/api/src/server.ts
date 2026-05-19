@@ -8,6 +8,7 @@ import { env } from './lib/env.js'
 import authPlugin from './plugins/auth.js'
 import errorPlugin from './plugins/error.js'
 import prismaPlugin from './plugins/prisma.js'
+import { carRoutes } from './routes/cars.js'
 import { checkoutRoutes } from './routes/checkout.js'
 import { healthRoutes } from './routes/health.js'
 import { meRoutes } from './routes/me.js'
@@ -36,6 +37,7 @@ export const buildServer = async (): Promise<FastifyInstance> => {
 
   await app.register(healthRoutes)
   await app.register(meRoutes)
+  await app.register(carRoutes)
   await app.register(pacotesRoutes)
   await app.register(checkoutRoutes)
   await app.register(purchaseRoutes)

@@ -335,7 +335,7 @@ pnpm typecheck
 - [ ] Tela: Catálogo presencial (com hero, combos, filtros)
 - [ ] Tela: Detalhe do Serviço (adaptativo: performance/aesthetic/config)
 - [ ] Tela: Agendar (calendar, multi-dia, política cancelamento)
-- [ ] Tela: Garagem (3 carros, ativo, status sobrepõe)
+- [x] Tela: Garagem (3 carros, ativo, status sobrepõe)
 - [ ] Reserva de saldo + job expirar reserva em 24h
 
 ### Sprint 3 — File service
