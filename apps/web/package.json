@@ -1,0 +1,17 @@
+{
+  "name": "@tpc/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "echo 'web dev: Sprint 1+'",
+    "build": "echo 'web build: Sprint 1+'",
+    "test": "echo 'web test: Sprint 1+'",
+    "lint": "echo 'web lint: Sprint 1+'",
+    "typecheck": "echo 'web typecheck: Sprint 1+'"
+  },
+  "dependencies": {
+    "@tpc/db": "workspace:*",
+    "@tpc/lib": "workspace:*",
+    "@tpc/ui": "workspace:*"
+  }
+}

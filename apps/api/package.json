@@ -1,0 +1,17 @@
+{
+  "name": "@tpc/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "echo 'api dev: Sprint 1+'",
+    "build": "echo 'api build: Sprint 1+'",
+    "test": "echo 'api test: Sprint 1+'",
+    "lint": "echo 'api lint: Sprint 1+'",
+    "typecheck": "echo 'api typecheck: Sprint 1+'"
+  },
+  "dependencies": {
+    "@tpc/db": "workspace:*",
+    "@tpc/lib": "workspace:*"
+  }
+}
