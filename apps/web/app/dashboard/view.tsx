@@ -164,24 +164,35 @@ export const DashboardView = ({ firstName, avatar, saldo, atividade }: Props) =>
           />
         </div>
 
-        <SecHeading>Meus carros</SecHeading>
+        <SecHeading
+          action={
+            <Link
+              href="/garagem"
+              className="text-[11px] text-tpc-text-secondary transition hover:text-tpc-text"
+            >
+              Ver garagem →
+            </Link>
+          }
+        >
+          Meus carros
+        </SecHeading>
         <div className="px-4">
-          <Card className="flex flex-col items-start gap-2 border-dashed">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full border border-tpc-border-strong bg-tpc-elevated-2 text-tpc-red">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 5v14M5 12h14" />
-              </svg>
-            </div>
-            <div>
-              <div className="text-sm font-semibold tracking-tight">
-                Ainda não tem carro cadastrado
+          <Link href="/garagem/adicionar" className="block">
+            <Card className="flex flex-col items-start gap-2 border-dashed hover:bg-tpc-elevated">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full border border-tpc-border-strong bg-tpc-elevated-2 text-tpc-red">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
               </div>
-              <div className="text-[11px] text-tpc-text-tertiary">
-                Garagem chega na Sprint 2. Por enquanto cadastra teu carro com o tuner por
-                WhatsApp.
+              <div>
+                <div className="text-sm font-semibold tracking-tight">Adiciona teu carro</div>
+                <div className="text-[11px] text-tpc-text-tertiary">
+                  Até 3 carros por conta. Cadastra pra ver serviços compatíveis e acompanhar
+                  garantias.
+                </div>
               </div>
-            </div>
-          </Card>
+            </Card>
+          </Link>
         </div>
 
         <SecHeading
