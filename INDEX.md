@@ -325,7 +325,7 @@ pnpm typecheck
 - [x] Setup CI (GitHub Actions: lint, typecheck, test)
 
 ### Sprint 1 — Funil de pontos (aquisição)
-- [ ] Telas: Splash, Login (Clerk hosted), Onboarding, Dashboard real
+- [x] Telas: Splash (loading.tsx), Login (Clerk hosted), Onboarding (3 steps), Dashboard real
 - [x] Tela: Comprar Pontos
 - [x] Telas: Checkout Pix · Cartão · Cartão salvo · Sucesso
 - [x] Webhook Mercado Pago + crédito de pontos (idempotente, HMAC)
