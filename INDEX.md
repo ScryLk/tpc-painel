@@ -321,7 +321,7 @@ pnpm typecheck
 - [x] Setup Prisma + Postgres + Redis (docker compose)
 - [x] Schema completo (17 entidades)
 - [x] Seed: 4 pacotes + 12 serviços presenciais + 9 + 1 custom remap + 2 users dummy
-- [ ] Auth Clerk (cliente + role tpc-staff)
+- [x] Auth Clerk (cliente + role tpc-staff)
 - [ ] Setup CI (GitHub Actions: lint, typecheck, test)
 
 ### Sprint 1 — Funil de pontos (aquisição)

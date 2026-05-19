@@ -18,6 +18,7 @@ pnpm install
 
 # 2. copia env de exemplo
 cp .env.example .env
+cp apps/web/.env.local.example apps/web/.env.local
 
 # 3. sobe Postgres + Redis em background
 docker compose up -d postgres redis
@@ -26,6 +27,9 @@ docker compose up -d postgres redis
 pnpm db:generate
 pnpm db:migrate
 pnpm db:seed
+
+# 5. preenche chaves Clerk no .env (raiz) e apps/web/.env.local
+#    pega em https://dashboard.clerk.com (Development instance)
 ```
 
 ## Comandos do dia-a-dia
@@ -63,7 +67,32 @@ pnpm db:reset      # apaga DB e re-aplica migrations + seed
 | `specs/`           | Spec-first. Uma feature por arquivo.           |
 | `.claude/`         | Config Claude Code (rules, hooks, settings)    |
 
-Apps em `apps/*` sao stubs no Sprint 0. Implementacao real comeca na Sprint 1.
+Sprint 0 entregou:
+
+- Monorepo (pnpm + turborepo) + Docker Compose (Postgres + Redis)
+- Prisma schema (17 entidades) + seed idempotente
+- Auth Clerk: middleware/provider no web, plugin JWT + lazy sync no api,
+  rotas `/sign-in`, `/sign-up`, `/dashboard` (web), endpoints `/health` e
+  `/me` (api).
+
+Pendente do Sprint 0: CI (GitHub Actions). Sprint 1 inicia o funil de pontos.
+
+## Como rodar os apps
+
+```bash
+# api Fastify (porta 3001)
+pnpm --filter @tpc/api dev
+
+# web Next.js (porta 3000)
+pnpm --filter @tpc/web dev
+
+# os dois em paralelo
+pnpm dev
+```
+
+A `/me` no Fastify exige header `Authorization: Bearer <clerk_jwt>`. O JWT
+sai do Clerk no front, ou da rota `/v1/sessions/.../tokens` do Clerk pra
+testes.
 
 ## Padroes
 
