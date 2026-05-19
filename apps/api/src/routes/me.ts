@@ -81,4 +81,79 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
       return { ok: true }
     },
   )
+
+  const atividadeQuerySchema = z.object({
+    limit: z.coerce.number().int().min(1).max(50).default(10),
+  })
+
+  // Timeline da home: últimas transactions com descrição amigável pra render.
+  // Junta Purchase (CREDIT vindo de compra de pacote) e futuras Solicitacao /
+  // RemapOrder (DEBIT/UNRESERVE) via includes nulláveis.
+  app.get('/me/atividade', { preHandler: [app.requireAuth] }, async (request) => {
+    const user = request.user
+    if (!user) throw new UnauthorizedError()
+    const { limit } = atividadeQuerySchema.parse(request.query)
+
+    const transactions = await app.prisma.transaction.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      include: {
+        purchase: {
+          select: {
+            mpPaymentMethod: true,
+            package: { select: { name: true, bonusPoints: true } },
+          },
+        },
+        solicitacao: {
+          select: {
+            service: { select: { name: true } },
+            car: { select: { brand: true, model: true } },
+          },
+        },
+        remapOrder: {
+          select: {
+            remapService: { select: { name: true } },
+          },
+        },
+      },
+    })
+
+    const items = transactions.map((tx) => {
+      let title = ''
+      let subtitle = ''
+
+      if (tx.purchase && tx.type === 'CREDIT') {
+        const bonus = tx.purchase.package.bonusPoints
+        const method = tx.purchase.mpPaymentMethod === 'PIX' ? 'Pix' : 'Cartão'
+        title = `Pacote ${tx.purchase.package.name} creditado`
+        subtitle = bonus > 0 ? `${tx.amount - bonus} + ${bonus} bônus · ${method}` : method
+      } else if (tx.solicitacao) {
+        const svc = tx.solicitacao.service.name
+        const car = tx.solicitacao.car
+          ? `${tx.solicitacao.car.brand} ${tx.solicitacao.car.model}`
+          : null
+        title = `${svc}${tx.type === 'DEBIT' ? ' concluído' : ''}`
+        subtitle = car ?? tx.type
+      } else if (tx.remapOrder) {
+        title = `${tx.remapOrder.remapService?.name ?? 'Pedido por arquivo'}`
+        subtitle = tx.type
+      } else {
+        title = tx.type === 'CREDIT' ? 'Crédito' : 'Movimento de pontos'
+        subtitle = ''
+      }
+
+      return {
+        id: tx.id,
+        type: tx.type,
+        amount: tx.amount,
+        balanceAfter: tx.balanceAfter,
+        title,
+        subtitle,
+        createdAt: tx.createdAt.toISOString(),
+      }
+    })
+
+    return { items }
+  })
 }
