@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022"],
+    "strict": true,
+    "noImplicitAny": true,
+    "noUncheckedIndexedAccess": true,
+    "noFallthroughCasesInSwitch": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "incremental": true,
+    "baseUrl": ".",
+    "paths": {
+      "@tpc/db": ["packages/db/src/index.ts"],
+      "@tpc/db/*": ["packages/db/src/*"],
+      "@tpc/lib": ["packages/lib/src/index.ts"],
+      "@tpc/lib/*": ["packages/lib/src/*"],
+      "@tpc/ui": ["packages/ui/src/index.ts"],
+      "@tpc/ui/*": ["packages/ui/src/*"]
+    }
+  },
+  "exclude": ["node_modules", ".next", "dist", "build"]
+}

@@ -1,0 +1,28 @@
+{
+  "name": "tpc-painel",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TPC Performance prepaid wallet for remap services",
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20.11"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "format": "prettier --write \"**/*.{ts,tsx,md,json}\" --ignore-path .gitignore",
+    "db:generate": "pnpm --filter @tpc/db generate",
+    "db:migrate": "pnpm --filter @tpc/db migrate",
+    "db:seed": "pnpm --filter @tpc/db seed",
+    "db:studio": "pnpm --filter @tpc/db studio",
+    "db:reset": "pnpm --filter @tpc/db reset"
+  },
+  "devDependencies": {
+    "prettier": "^3.4.2",
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.2"
+  }
+}

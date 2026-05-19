@@ -317,12 +317,12 @@ pnpm typecheck
 - [ ] Sprites de carro (Gemini · 6 tipos) → integrar em `apps/web/public/sprites/`
 
 ### Sprint 0 — Foundation
-- [ ] Bootstrap monorepo (pnpm + Turborepo)
-- [ ] Setup Prisma + Postgres + Redis (docker compose)
-- [ ] Schema completo (15+ entidades)
-- [ ] Seed: 4 pacotes + 12 serviços presenciais + 9 serviços remap + user dummy
-- [ ] Auth Clerk (cliente + role tpc-staff)
-- [ ] Setup CI (GitHub Actions: lint, typecheck, test)
+- [x] Bootstrap monorepo (pnpm + Turborepo)
+- [x] Setup Prisma + Postgres + Redis (docker compose)
+- [x] Schema completo (17 entidades)
+- [x] Seed: 4 pacotes + 12 serviços presenciais + 9 + 1 custom remap + 2 users dummy
+- [x] Auth Clerk (cliente + role tpc-staff)
+- [x] Setup CI (GitHub Actions: lint, typecheck, test)
 
 ### Sprint 1 — Funil de pontos (aquisição)
 - [ ] Telas: Splash, Login, Onboarding, Dashboard

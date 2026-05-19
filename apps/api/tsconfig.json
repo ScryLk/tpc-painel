@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "types": ["node"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "baseUrl": ".",
+    "paths": {
+      "@tpc/db": ["../../packages/db/src/index.ts"],
+      "@tpc/db/*": ["../../packages/db/src/*"],
+      "@tpc/lib": ["../../packages/lib/src/index.ts"],
+      "@tpc/lib/*": ["../../packages/lib/src/*"]
+    }
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}
