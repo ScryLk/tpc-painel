@@ -55,21 +55,26 @@ export const ComprarPontosView = ({ pacotes, saldo }: Props) => {
   const [selectedId, setSelectedId] = useState<string | undefined>(initialTier)
   const selected = pacotes.find((p) => p.id === selectedId) ?? pacotes[0]
 
-  const handlePagar = (method: 'pix' | 'card') => {
+  const handlePagarPix = () => {
     if (!selected) return
     setError(null)
     startTransition(async () => {
       try {
         const res = await api.post<CheckoutResponse>('/checkout', {
           packageId: selected.id,
-          method,
+          method: 'pix',
         })
-        router.push(`/pontos/checkout/${res.purchaseId}?method=${method}`)
+        router.push(`/pontos/checkout/${res.purchaseId}`)
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Falha ao iniciar checkout.'
         setError(message)
       }
     })
+  }
+
+  const handleAbrirCartao = () => {
+    if (!selected) return
+    router.push(`/pontos/cartao/${selected.id}`)
   }
 
   if (!selected) {
@@ -180,8 +185,8 @@ export const ComprarPontosView = ({ pacotes, saldo }: Props) => {
       <BottomCTA
         pkg={selected}
         disabled={isPending}
-        onPix={() => handlePagar('pix')}
-        onCard={() => handlePagar('card')}
+        onPix={handlePagarPix}
+        onCard={handleAbrirCartao}
       />
     </ScreenChrome>
   )

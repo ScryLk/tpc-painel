@@ -325,11 +325,11 @@ pnpm typecheck
 - [x] Setup CI (GitHub Actions: lint, typecheck, test)
 
 ### Sprint 1 — Funil de pontos (aquisição)
-- [ ] Telas: Splash, Login, Onboarding, Dashboard
-- [ ] Tela: Comprar Pontos
-- [ ] Telas: Checkout Pix · Cartão · Cartão salvo · Sucesso
-- [ ] Webhook Mercado Pago + crédito de pontos (idempotente, HMAC)
-- [ ] Job: notify-whatsapp + notify-email pós-compra
+- [ ] Telas: Splash, Login (Clerk hosted), Onboarding, Dashboard real
+- [x] Tela: Comprar Pontos
+- [x] Telas: Checkout Pix · Cartão · Cartão salvo · Sucesso
+- [x] Webhook Mercado Pago + crédito de pontos (idempotente, HMAC)
+- [x] Job: notify-whatsapp + notify-email pós-compra (stubs com BullMQ)
 
 ### Sprint 2 — Catálogo + Agendar (resgate presencial)
 - [ ] Tela: Catálogo presencial (com hero, combos, filtros)
