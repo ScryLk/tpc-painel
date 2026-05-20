@@ -40,6 +40,20 @@ export const enqueue = async <T extends Record<string, unknown>>(
   await getQueue().add(name, data)
 }
 
+// Agenda um job recorrente. Idempotente: remove agendamento anterior com
+// mesmo nome antes de adicionar o novo (protege contra duplicação após
+// restart do worker).
+export const scheduleRepeatable = async (name: string, intervalMs: number): Promise<void> => {
+  const queue = getQueue()
+  const existing = await queue.getRepeatableJobs()
+  for (const job of existing) {
+    if (job.name === name) {
+      await queue.removeRepeatableByKey(job.key)
+    }
+  }
+  await queue.add(name, {}, { repeat: { every: intervalMs } })
+}
+
 // Catálogo dos processadores registrados. Workers dispatcham pelo job.name.
 interface JobDef<T extends Record<string, unknown>> {
   name: string
