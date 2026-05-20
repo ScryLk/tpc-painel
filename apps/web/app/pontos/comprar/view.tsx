@@ -6,16 +6,9 @@ import { useState, useTransition } from 'react'
 import { useApi } from '@/lib/api/client'
 import { totalCreditedPoints } from '@tpc/lib/business'
 import { formatBRL, formatPoints } from '@tpc/lib/formatters'
-import {
-  BackButton,
-  BrandPill,
-  Card,
-  PointsDisplay,
-  ScreenChrome,
-  SecHeading,
-  TPCHeader,
-  cn,
-} from '@tpc/ui'
+import { BrandPill, Card, SecHeading, cn } from '@tpc/ui'
+
+import { ClientShell } from '@/components/layout/ClientShell'
 
 interface Pacote {
   id: string
@@ -79,116 +72,117 @@ export const ComprarPontosView = ({ pacotes, saldo }: Props) => {
 
   if (!selected) {
     return (
-      <ScreenChrome>
-        <TPCHeader
-          back={<BackButton onClick={() => router.back()} />}
-          title="Carregar pontos"
-          subtitle="Nenhum pacote disponível"
-        />
-        <main className="flex-1 p-6 text-tpc-text-secondary">
-          Os pacotes ainda não foram cadastrados. Tenta de novo em alguns minutos.
-        </main>
-      </ScreenChrome>
+      <ClientShell
+        breadcrumbs={['Pontos', 'Carregar']}
+        saldoAvailable={saldo.available}
+      >
+        <div className="mx-auto max-w-[1280px] px-6 py-8 md:px-10">
+          <h1 className="text-[26px] font-bold tracking-[-0.03em] text-tpc-text">
+            Carregar pontos
+          </h1>
+          <p className="mt-2 text-sm text-tpc-text-secondary">
+            Os pacotes ainda não foram cadastrados. Tenta de novo em alguns minutos.
+          </p>
+        </div>
+      </ClientShell>
     )
   }
 
   return (
-    <ScreenChrome>
-      <TPCHeader
-        back={<BackButton onClick={() => router.back()} />}
-        title="Carregar pontos"
-        subtitle="Quanto mais, mais barato"
-        right={<PointsDisplay balance={saldo.available} compact />}
-      />
+    <ClientShell
+      breadcrumbs={['Pontos', 'Carregar']}
+      saldoAvailable={saldo.available}
+    >
+      <div className="mx-auto max-w-[1280px] px-6 py-7 md:px-10">
+        <div className="mb-6">
+          <h1 className="text-[26px] font-bold leading-tight tracking-[-0.03em] text-tpc-text">
+            Carregar pontos
+          </h1>
+          <p className="mt-1 text-[13px] text-tpc-text-secondary">
+            Quanto mais, mais barato. Pontos não expiram. Pix instantâneo ou cartão até 3x.
+          </p>
+        </div>
 
-      <div className="tpc-scroll flex-1 overflow-y-auto pb-40">
-        <p className="px-5 pb-5 pt-4 text-sm leading-relaxed text-tpc-text-secondary">
-          Pontos não expiram. Pix instantâneo ou cartão.{' '}
-          <span className="text-tpc-text">Sem pegadinha.</span>
-        </p>
+        <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
+          <div className="min-w-0">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {pacotes.map((p) => (
+                <PackageCard
+                  key={p.id}
+                  pkg={p}
+                  selected={p.id === selectedId}
+                  onSelect={() => setSelectedId(p.id)}
+                />
+              ))}
+            </div>
 
-        <div className="tpc-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto px-5 pb-3">
-          {pacotes.map((p) => (
-            <PackageCard
-              key={p.id}
-              pkg={p}
-              selected={p.id === selectedId}
-              onSelect={() => setSelectedId(p.id)}
+            <SecHeading className="px-0 pb-2 pt-6">Compare os pacotes</SecHeading>
+            <Card className="overflow-hidden p-0" elevated={false}>
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-tpc-bg/60">
+                    <Th>Pacote</Th>
+                    <Th align="right">Pts</Th>
+                    <Th align="right">Bônus</Th>
+                    <Th align="right">Total</Th>
+                    <Th align="right">Preço</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pacotes.map((p, i) => (
+                    <Row
+                      key={p.id}
+                      name={p.name}
+                      pts={formatPoints(p.points)}
+                      bonus={p.bonusPoints > 0 ? `+${formatPoints(p.bonusPoints)}` : '—'}
+                      total={formatPoints(totalCreditedPoints(p))}
+                      price={formatBRL(p.priceCents)}
+                      highlight={p.id === selectedId}
+                      last={i === pacotes.length - 1}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </Card>
+
+            <div className="mt-6">
+              <div className="tpc-eyebrow mb-2 flex items-center gap-2">
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  className="text-tpc-green"
+                  aria-hidden
+                >
+                  <rect x="4" y="11" width="16" height="11" rx="2" />
+                  <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+                </svg>
+                <span>Compra 100% segura · Mercado Pago</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <BrandPill kind="pix" />
+                <BrandPill kind="visa" />
+                <BrandPill kind="master" />
+                <BrandPill kind="elo" />
+              </div>
+            </div>
+          </div>
+
+          <aside className="lg:sticky lg:top-4 lg:self-start">
+            <CheckoutSidebar
+              pkg={selected}
+              error={error}
+              isPending={isPending}
+              onPix={handlePagarPix}
+              onCard={handleAbrirCartao}
             />
-          ))}
+          </aside>
         </div>
-
-        <div className="flex justify-center gap-1.5 pb-4">
-          {pacotes.map((p) => (
-            <span
-              key={p.id}
-              className={cn(
-                'h-1.5 rounded-full transition-all',
-                p.id === selectedId ? 'w-5 bg-tpc-red' : 'w-1.5 bg-tpc-border-strong',
-              )}
-            />
-          ))}
-        </div>
-
-        <SecHeading>Compare os pacotes</SecHeading>
-        <div className="px-5">
-          <Card className="overflow-hidden p-0" elevated={false}>
-            <table className="w-full">
-              <thead>
-                <tr className="bg-[#0f0f0f]">
-                  <Th>Pacote</Th>
-                  <Th align="right">Pts</Th>
-                  <Th align="right">Bônus</Th>
-                  <Th align="right">Total</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {pacotes.map((p, i) => (
-                  <Row
-                    key={p.id}
-                    name={p.name}
-                    pts={formatPoints(p.points)}
-                    bonus={p.bonusPoints > 0 ? `+${formatPoints(p.bonusPoints)}` : '—'}
-                    total={formatPoints(totalCreditedPoints(p))}
-                    highlight={p.id === selectedId}
-                    last={i === pacotes.length - 1}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </Card>
-        </div>
-
-        <div className="px-5 pt-5">
-          <div className="tpc-eyebrow mb-2.5 flex items-center gap-2">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-tpc-green">
-              <rect x="4" y="11" width="16" height="11" rx="2" />
-              <path d="M8 11V7a4 4 0 0 1 8 0v4" />
-            </svg>
-            <span>Compra 100% segura · Mercado Pago</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <BrandPill kind="pix" />
-            <BrandPill kind="visa" />
-            <BrandPill kind="master" />
-            <BrandPill kind="elo" />
-          </div>
-        </div>
-
-        {error && (
-          <div className="mx-5 mt-5 rounded-lg border border-tpc-red/40 bg-tpc-red/10 px-3 py-2 text-sm text-tpc-red">
-            {error}
-          </div>
-        )}
       </div>
-
-      <BottomCTA
-        pkg={selected}
-        disabled={isPending}
-        onPix={handlePagarPix}
-        onCard={handleAbrirCartao}
-      />
-    </ScreenChrome>
+    </ClientShell>
   )
 }
 
@@ -207,19 +201,19 @@ function PackageCard({
       type="button"
       onClick={onSelect}
       className={cn(
-        'relative w-[280px] shrink-0 snap-center rounded-2xl p-5 text-left transition',
+        'relative rounded-2xl p-4 text-left transition',
         selected
           ? 'border-2 border-tpc-red bg-tpc-elevated shadow-[0_0_0_4px_rgba(225,38,28,0.12),0_8px_24px_rgba(0,0,0,0.4)]'
-          : 'border border-tpc-border bg-tpc-surface',
+          : 'border border-tpc-border bg-tpc-surface hover:border-tpc-red/40',
       )}
     >
       {pkg.popular && (
-        <span className="absolute right-3.5 top-3.5 rounded bg-tpc-red px-2 py-1 font-mono text-[8px] font-bold tracking-[0.18em] text-tpc-text">
+        <span className="absolute right-3 top-3 rounded bg-tpc-red px-1.5 py-0.5 font-mono text-[8px] font-bold tracking-[0.16em] text-tpc-text">
           MAIS ESCOLHIDO
         </span>
       )}
       {!pkg.popular && pkg.bonusPct > 0 && (
-        <span className="absolute right-3.5 top-3.5 rounded border border-tpc-green/40 bg-tpc-green/10 px-2 py-0.5 font-mono text-[9px] font-bold tracking-[0.12em] text-tpc-green">
+        <span className="absolute right-3 top-3 rounded border border-tpc-green/40 bg-tpc-green/10 px-1.5 py-0.5 font-mono text-[9px] font-bold tracking-[0.12em] text-tpc-green">
           +{pkg.bonusPct}%
         </span>
       )}
@@ -227,23 +221,23 @@ function PackageCard({
       <div className="tpc-eyebrow !text-tpc-text-secondary">{pkg.name}</div>
 
       <div className="mt-1 flex items-baseline gap-1.5">
-        <span className="tpc-num text-5xl font-medium leading-none tracking-tight">
+        <span className="tpc-num text-[36px] font-medium leading-none tracking-tight">
           {formatPoints(pkg.points)}
         </span>
-        <span className="text-xs text-tpc-text-secondary">pts</span>
+        <span className="text-[11px] text-tpc-text-secondary">pts</span>
       </div>
 
       {pkg.bonusPoints > 0 && (
-        <div className="mt-2 flex items-center gap-1.5 font-mono text-[10px] text-tpc-green">
-          <span>+{formatPoints(pkg.bonusPoints)} pts bônus</span>
+        <div className="mt-1.5 flex flex-wrap items-center gap-1 font-mono text-[10px] text-tpc-green">
+          <span>+{formatPoints(pkg.bonusPoints)} bônus</span>
           <span className="text-tpc-text-tertiary">·</span>
           <span className="text-tpc-text">{formatPoints(total)} total</span>
         </div>
       )}
 
-      <div className="mt-3.5 border-t border-tpc-border pt-3.5">
-        <div className="tpc-eyebrow mb-1">Preço</div>
-        <div className="tpc-num text-2xl font-medium leading-none tracking-tight">
+      <div className="mt-3 border-t border-tpc-border pt-3">
+        <div className="tpc-eyebrow mb-0.5">Preço</div>
+        <div className="tpc-num text-[20px] font-semibold leading-none tracking-tight">
           {formatBRL(pkg.priceCents)}
         </div>
       </div>
@@ -269,6 +263,7 @@ function Row({
   pts,
   bonus,
   total,
+  price,
   highlight,
   last,
 }: {
@@ -276,6 +271,7 @@ function Row({
   pts: string
   bonus: string
   total: string
+  price: string
   highlight: boolean
   last: boolean
 }) {
@@ -286,11 +282,13 @@ function Row({
         highlight && 'bg-tpc-red/[0.05]',
       )}
     >
-      <td className="flex items-center gap-2 px-3.5 py-3 text-sm font-medium">
-        {highlight && (
-          <span className="h-3.5 w-[3px] rounded-sm bg-tpc-red shadow-[0_0_6px_rgba(225,38,28,0.5)]" />
-        )}
-        {name}
+      <td className="px-3.5 py-3 text-sm font-medium">
+        <span className="flex items-center gap-2">
+          {highlight && (
+            <span className="h-3.5 w-[3px] rounded-sm bg-tpc-red shadow-[0_0_6px_rgba(225,38,28,0.5)]" />
+          )}
+          {name}
+        </span>
       </td>
       <td className="tpc-num px-3.5 py-3 text-right text-xs">{pts}</td>
       <td
@@ -302,62 +300,80 @@ function Row({
         {bonus}
       </td>
       <td className="tpc-num px-3.5 py-3 text-right text-xs font-semibold">{total}</td>
+      <td className="tpc-num px-3.5 py-3 text-right text-xs">{price}</td>
     </tr>
   )
 }
 
-function BottomCTA({
+function CheckoutSidebar({
   pkg,
-  disabled,
+  error,
+  isPending,
   onPix,
   onCard,
 }: {
   pkg: Pacote
-  disabled: boolean
+  error: string | null
+  isPending: boolean
   onPix: () => void
   onCard: () => void
 }) {
   const total = totalCreditedPoints(pkg)
   return (
-    <div className="absolute inset-x-0 bottom-0 mx-auto w-full max-w-[420px] border-t border-tpc-border bg-tpc-bg px-5 pb-5 pt-3.5 shadow-[0_-8px_24px_rgba(0,0,0,0.5)]">
-      <div className="mb-2.5 flex items-center gap-2 font-mono text-[10px] font-semibold tracking-[0.08em] text-tpc-text">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" className="text-tpc-red drop-shadow-[0_0_4px_rgba(225,38,28,0.4)]">
-          <path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z" />
-        </svg>
-        <span className="uppercase text-tpc-text-secondary">{pkg.name}</span>
-        <span className="text-tpc-text-tertiary">·</span>
-        <span>{formatPoints(pkg.points)}</span>
+    <Card className="overflow-hidden p-0">
+      <div className="border-b border-tpc-border bg-tpc-elevated/40 p-5">
+        <div className="tpc-eyebrow mb-1.5">Pacote selecionado</div>
+        <div className="text-lg font-bold tracking-[-0.02em] text-tpc-text">
+          {pkg.name}
+        </div>
+        <div className="mt-3 flex items-baseline gap-1.5">
+          <span className="tpc-num text-[36px] font-semibold leading-none tracking-tight text-tpc-text">
+            {formatPoints(total)}
+          </span>
+          <span className="text-xs text-tpc-text-secondary">pts totais</span>
+        </div>
         {pkg.bonusPoints > 0 && (
-          <>
-            <span className="text-tpc-green">+{formatPoints(pkg.bonusPoints)}</span>
-            <span className="text-tpc-text-tertiary">= {formatPoints(total)} pts</span>
-          </>
+          <div className="mt-1.5 font-mono text-[11px] text-tpc-green">
+            {formatPoints(pkg.points)} +{formatPoints(pkg.bonusPoints)} bônus
+          </div>
         )}
-        {pkg.bonusPoints === 0 && <span className="text-tpc-text-tertiary">pts</span>}
       </div>
 
-      <div className="flex gap-2">
+      <div className="p-5">
+        <div className="mb-4 flex items-baseline justify-between">
+          <span className="text-[13px] text-tpc-text-secondary">Total</span>
+          <span className="tpc-num text-2xl font-semibold tracking-tight text-tpc-text">
+            {formatBRL(pkg.priceCents)}
+          </span>
+        </div>
+
         <button
           type="button"
           onClick={onPix}
-          disabled={disabled}
-          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-tpc-red px-4 py-3.5 font-sans text-sm font-semibold tracking-tight text-tpc-text shadow-lg shadow-tpc-red/40 transition hover:bg-tpc-red-dark disabled:opacity-60"
+          disabled={isPending}
+          className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-tpc-red px-4 py-3 font-sans text-sm font-semibold tracking-tight text-tpc-text shadow-lg shadow-tpc-red/40 transition hover:bg-tpc-red-dark disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {disabled ? 'Carregando…' : <>Pagar {formatBRL(pkg.priceCents)}</>}
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M5 12h14M13 5l7 7-7 7" />
-          </svg>
+          {isPending ? 'Carregando…' : `Pagar com Pix · ${formatBRL(pkg.priceCents)}`}
         </button>
         <button
           type="button"
           onClick={onCard}
-          disabled={disabled}
-          className="flex shrink-0 items-center justify-center rounded-xl border border-tpc-border-strong bg-tpc-elevated px-4 py-3.5 text-sm font-medium text-tpc-text transition hover:bg-tpc-elevated-2 disabled:opacity-60"
-          aria-label="Pagar com cartão"
+          disabled={isPending}
+          className="mt-2 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-tpc-border-strong bg-tpc-elevated px-4 py-3 text-sm font-medium text-tpc-text transition hover:bg-tpc-elevated-2 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          Cartão
+          Pagar com cartão · até 3x
         </button>
+
+        {error && (
+          <div className="mt-3 rounded-lg border border-tpc-red/40 bg-tpc-red/10 px-3 py-2 text-xs text-tpc-red">
+            {error}
+          </div>
+        )}
+
+        <p className="mt-4 text-[11px] leading-relaxed text-tpc-text-tertiary">
+          Pix cai na hora. Cartão até 3x sem juros. Pontos não expiram.
+        </p>
       </div>
-    </div>
+    </Card>
   )
 }

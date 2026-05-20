@@ -7,15 +7,9 @@ import { useApi } from '@/lib/api/client'
 import { detectBrand, formatCardNumber, formatExpiry, tokenizeCard } from '@/lib/mp/client'
 import { canInstall, installmentValueCents, totalCreditedPoints } from '@tpc/lib/business'
 import { formatBRL, formatPoints } from '@tpc/lib/formatters'
-import {
-  BackButton,
-  BrandPill,
-  Card,
-  PointsDisplay,
-  ScreenChrome,
-  TPCHeader,
-  cn,
-} from '@tpc/ui'
+import { BrandPill, Card, cn } from '@tpc/ui'
+
+import { ClientShell } from '@/components/layout/ClientShell'
 
 interface Pacote {
   id: string
@@ -95,80 +89,96 @@ export const CartaoView = ({
   }
 
   return (
-    <ScreenChrome>
-      <TPCHeader
-        back={<BackButton onClick={() => router.push('/pontos/comprar')} />}
-        title="Pagar com cartão"
-        subtitle={pacote.name}
-        right={<PointsDisplay balance={saldo.available} compact />}
-      />
-
-      <main className="tpc-scroll flex-1 overflow-y-auto px-4 pb-6 pt-3.5">
-        <OrderSummary pacote={pacote} />
-
-        {savedCards.length > 0 && (
-          <SavedCardsSection
-            cards={savedCards}
-            selectedId={selectedSavedId}
-            onSelect={setSelectedSavedId}
-            installments={installments}
-            onInstallmentsChange={setInstallments}
-            installmentsEnabled={installmentsEnabled}
-            priceCents={pacote.priceCents}
-            disabled={isPending}
-            onPay={onPay1Click}
-          />
-        )}
-
-        <NewCardForm
-          pacote={pacote}
-          installments={installments}
-          onInstallmentsChange={setInstallments}
-          installmentsEnabled={installmentsEnabled}
-          onSubmitError={setError}
-          onSubmitting={(value) => {
-            // expose loading from form via setError null + onSubmit pattern
-            if (value === false) return
-          }}
-        />
-
-        {error && (
-          <div className="mt-4 rounded-lg border border-tpc-red/40 bg-tpc-red/10 px-3 py-2 text-sm text-tpc-red">
-            {error}
-          </div>
-        )}
-
-        <div className="mt-4 flex items-center justify-center gap-2.5 font-mono text-[8.5px] uppercase tracking-[0.16em] text-tpc-text-tertiary">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-tpc-green">
-            <rect x="4" y="11" width="16" height="11" rx="2" />
-            <path d="M8 11V7a4 4 0 0 1 8 0v4" />
-          </svg>
-          <span>Transação segura · Mercado Pago</span>
+    <ClientShell
+      breadcrumbs={['Pontos', 'Carregar', 'Cartão']}
+      saldoAvailable={saldo.available}
+    >
+      <div className="mx-auto max-w-[1280px] px-6 py-7 md:px-10">
+        <div className="mb-6">
+          <h1 className="text-[26px] font-bold leading-tight tracking-[-0.03em] text-tpc-text">
+            Pagar com cartão
+          </h1>
+          <p className="mt-1 text-[13px] text-tpc-text-secondary">
+            {pacote.name} · até 3x sem juros
+          </p>
         </div>
-      </main>
-    </ScreenChrome>
+
+        <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
+          <div className="min-w-0">
+            {savedCards.length > 0 && (
+              <SavedCardsSection
+                cards={savedCards}
+                selectedId={selectedSavedId}
+                onSelect={setSelectedSavedId}
+                installments={installments}
+                onInstallmentsChange={setInstallments}
+                installmentsEnabled={installmentsEnabled}
+                priceCents={pacote.priceCents}
+                disabled={isPending}
+                onPay={onPay1Click}
+              />
+            )}
+
+            <NewCardForm
+              pacote={pacote}
+              installments={installments}
+              onInstallmentsChange={setInstallments}
+              installmentsEnabled={installmentsEnabled}
+              onSubmitError={setError}
+              onSubmitting={() => undefined}
+            />
+
+            {error && (
+              <div className="mt-4 rounded-lg border border-tpc-red/40 bg-tpc-red/10 px-3 py-2 text-sm text-tpc-red">
+                {error}
+              </div>
+            )}
+
+            <div className="mt-4 flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.16em] text-tpc-text-tertiary">
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                className="text-tpc-green"
+                aria-hidden
+              >
+                <rect x="4" y="11" width="16" height="11" rx="2" />
+                <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+              </svg>
+              <span>Transação segura · Mercado Pago</span>
+            </div>
+          </div>
+
+          <aside className="lg:sticky lg:top-4 lg:self-start">
+            <OrderSummary pacote={pacote} />
+          </aside>
+        </div>
+      </div>
+    </ClientShell>
   )
 }
 
 function OrderSummary({ pacote }: { pacote: Pacote }) {
   const total = totalCreditedPoints(pacote)
   return (
-    <Card elevated className="mb-3.5">
+    <Card elevated>
       <div className="tpc-eyebrow">Seu pacote</div>
-      <div className="mt-1.5 text-lg font-bold tracking-tight">
-        {pacote.name} · {formatPoints(pacote.points)} pts
+      <div className="mt-1.5 text-lg font-bold tracking-tight">{pacote.name}</div>
+      <div className="mt-3 flex items-baseline gap-1.5">
+        <span className="tpc-num text-[36px] font-semibold leading-none tracking-tight text-tpc-text">
+          {formatPoints(total)}
+        </span>
+        <span className="text-xs text-tpc-text-secondary">pts totais</span>
       </div>
       {pacote.bonusPoints > 0 && (
-        <div className="mt-1 flex items-center gap-2">
-          <span className="rounded border border-tpc-green/30 bg-tpc-green/10 px-2 py-0.5 font-mono text-[10px] font-semibold tracking-wider text-tpc-green">
-            +{formatPoints(pacote.bonusPoints)} BÔNUS
-          </span>
-          <span className="text-xs text-tpc-text-secondary">
-            = {formatPoints(total)} pts no total
-          </span>
+        <div className="mt-1.5 font-mono text-[11px] text-tpc-green">
+          {formatPoints(pacote.points)} +{formatPoints(pacote.bonusPoints)} bônus
         </div>
       )}
-      <div className="mt-3.5 flex items-baseline justify-between border-t border-tpc-border pt-3.5">
+      <div className="mt-4 flex items-baseline justify-between border-t border-tpc-border pt-4">
         <span className="text-sm text-tpc-text-secondary">Total a pagar</span>
         <span className="tpc-num text-2xl font-semibold tracking-tight">
           {formatBRL(pacote.priceCents)}

@@ -23,7 +23,10 @@ export const metadata = { title: 'Carregar pontos · TPC Painel' }
 
 export default async function ComprarPontosPage() {
   const [pacotesRes, saldo] = await Promise.all([
-    apiGet<{ pacotes: Pacote[] }>('/pacotes', { requireAuth: false, cache: 'no-store' }),
+    apiGet<{ pacotes: Pacote[] }>('/pacotes', {
+      requireAuth: false,
+      cache: 'no-store',
+    }).catch(() => ({ pacotes: [] })),
     apiGet<Saldo>('/me/saldo').catch(() => ({ available: 0, reserved: 0, total: 0 })),
   ])
 

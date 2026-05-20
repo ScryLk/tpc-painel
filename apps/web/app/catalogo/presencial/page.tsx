@@ -32,7 +32,9 @@ export const metadata = { title: 'Catálogo presencial · TPC Painel' }
 
 export default async function CatalogoPresencialPage() {
   const [servicosRes, saldo, carsRes] = await Promise.all([
-    apiGet<{ servicos: Servico[] }>('/servicos', { requireAuth: false }),
+    apiGet<{ servicos: Servico[] }>('/servicos', { requireAuth: false }).catch(
+      () => ({ servicos: [] }),
+    ),
     apiGet<Saldo>('/me/saldo').catch(() => ({ available: 0, reserved: 0, total: 0 })),
     apiGet<{ cars: CarLite[] }>('/me/cars').catch(() => ({ cars: [] })),
   ])

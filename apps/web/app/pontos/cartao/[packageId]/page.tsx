@@ -39,7 +39,9 @@ interface PageProps {
 export default async function CartaoPage({ params }: PageProps) {
   const { packageId } = await params
 
-  const pacotesRes = await apiGet<{ pacotes: Pacote[] }>('/pacotes', { requireAuth: false })
+  const pacotesRes = await apiGet<{ pacotes: Pacote[] }>('/pacotes', {
+    requireAuth: false,
+  }).catch(() => ({ pacotes: [] as Pacote[] }))
   const pacote = pacotesRes.pacotes.find((p) => p.id === packageId)
   if (!pacote) notFound()
 

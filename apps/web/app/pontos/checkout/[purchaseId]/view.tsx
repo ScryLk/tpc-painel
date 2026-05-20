@@ -5,7 +5,9 @@ import { useEffect, useState } from 'react'
 
 import { useApi } from '@/lib/api/client'
 import { formatBRL, formatCountdown, formatPoints } from '@tpc/lib/formatters'
-import { BackButton, Card, ScreenChrome, TPCHeader, cn } from '@tpc/ui'
+import { Card, cn } from '@tpc/ui'
+
+import { ClientShell } from '@/components/layout/ClientShell'
 
 interface Purchase {
   id: string
@@ -54,31 +56,51 @@ export const CheckoutView = ({ purchase }: Props) => {
   }, [status, purchase.id, api, router])
 
   return (
-    <ScreenChrome>
-      <TPCHeader
-        back={<BackButton onClick={() => router.push('/pontos/comprar')} />}
-        title="Confirmar compra"
-        subtitle={purchase.method === 'PIX' ? 'Pague com Pix' : 'Pague no cartão'}
-      />
-
-      <main className="tpc-scroll flex-1 overflow-y-auto px-4 pb-6 pt-3.5">
-        <OrderSummary purchase={purchase} />
-
-        {purchase.method === 'PIX' ? (
-          <PixView purchase={purchase} />
-        ) : (
-          <CardView purchase={purchase} />
-        )}
-
-        <div className="mt-4 flex items-center justify-center gap-2.5 font-mono text-[8.5px] uppercase tracking-[0.16em] text-tpc-text-tertiary">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-tpc-green">
-            <rect x="4" y="11" width="16" height="11" rx="2" />
-            <path d="M8 11V7a4 4 0 0 1 8 0v4" />
-          </svg>
-          <span>Pagamento protegido por Mercado Pago</span>
+    <ClientShell breadcrumbs={['Pontos', 'Checkout']}>
+      <div className="mx-auto max-w-[1280px] px-6 py-7 md:px-10">
+        <div className="mb-6">
+          <h1 className="text-[26px] font-bold leading-tight tracking-[-0.03em] text-tpc-text">
+            Confirmar compra
+          </h1>
+          <p className="mt-1 text-[13px] text-tpc-text-secondary">
+            {purchase.method === 'PIX'
+              ? 'Use o Pix abaixo. Pontos caem em segundos depois da confirmação.'
+              : 'Estamos confirmando o cartão com o Mercado Pago.'}
+          </p>
         </div>
-      </main>
-    </ScreenChrome>
+
+        <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
+          <div className="min-w-0">
+            {purchase.method === 'PIX' ? (
+              <PixView purchase={purchase} />
+            ) : (
+              <CardView purchase={purchase} />
+            )}
+
+            <div className="mt-4 flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.16em] text-tpc-text-tertiary">
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                className="text-tpc-green"
+                aria-hidden
+              >
+                <rect x="4" y="11" width="16" height="11" rx="2" />
+                <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+              </svg>
+              <span>Pagamento protegido por Mercado Pago</span>
+            </div>
+          </div>
+
+          <aside className="lg:sticky lg:top-4 lg:self-start">
+            <OrderSummary purchase={purchase} />
+          </aside>
+        </div>
+      </div>
+    </ClientShell>
   )
 }
 
@@ -87,27 +109,32 @@ function OrderSummary({ purchase }: { purchase: Purchase }) {
   const total = points + bonusPoints
 
   return (
-    <Card elevated className="mb-3.5">
+    <Card elevated>
       <div className="tpc-eyebrow">Seu pacote</div>
-      <div className="mt-1.5 text-lg font-bold tracking-tight">
-        {name} · {formatPoints(points)} pts
+      <div className="mt-1.5 text-lg font-bold tracking-tight">{name}</div>
+      <div className="mt-3 flex items-baseline gap-1.5">
+        <span className="tpc-num text-[36px] font-semibold leading-none tracking-tight text-tpc-text">
+          {formatPoints(total)}
+        </span>
+        <span className="text-xs text-tpc-text-secondary">pts totais</span>
       </div>
       {bonusPoints > 0 && (
-        <div className="mt-1 flex items-center gap-2">
-          <span className="rounded border border-tpc-green/30 bg-tpc-green/10 px-2 py-0.5 font-mono text-[10px] font-semibold tracking-wider text-tpc-green">
-            +{formatPoints(bonusPoints)} BÔNUS
-          </span>
-          <span className="text-xs text-tpc-text-secondary">
-            = {formatPoints(total)} pts no total
-          </span>
+        <div className="mt-1.5 font-mono text-[11px] text-tpc-green">
+          {formatPoints(points)} +{formatPoints(bonusPoints)} bônus
         </div>
       )}
-      <div className="mt-3.5 flex items-baseline justify-between border-t border-tpc-border pt-3.5">
+      <div className="mt-4 flex items-baseline justify-between border-t border-tpc-border pt-4">
         <span className="text-sm text-tpc-text-secondary">Total a pagar</span>
         <span className="tpc-num text-2xl font-semibold tracking-tight">
           {formatBRL(purchase.amountCents)}
         </span>
       </div>
+      {purchase.installments > 1 && (
+        <div className="mt-2 text-right font-mono text-[10px] text-tpc-text-tertiary">
+          {purchase.installments}x de{' '}
+          {formatBRL(Math.round(purchase.amountCents / purchase.installments))}
+        </div>
+      )}
     </Card>
   )
 }
@@ -188,7 +215,7 @@ function PixView({ purchase }: { purchase: Purchase }) {
 
       {purchase.qrCodeBase64 && (
         <div className="mt-4 border-t border-tpc-border pt-3.5">
-          <div className="tpc-eyebrow mb-2.5 text-center">Ou escaneie com outro celular</div>
+          <div className="tpc-eyebrow mb-2.5 text-center">Escaneie o QR code</div>
           <div className="flex justify-center">
             {purchase.qrCodeBase64.startsWith('data:image') ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -206,16 +233,17 @@ function PixView({ purchase }: { purchase: Purchase }) {
 }
 
 function ExpiryTimer({ expiresAt }: { expiresAt: Date }) {
-  const [remaining, setRemaining] = useState(() =>
-    Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / 1000)),
-  )
+  const [remaining, setRemaining] = useState<number | null>(null)
 
   useEffect(() => {
-    const id = setInterval(() => {
+    const update = () =>
       setRemaining(Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / 1000)))
-    }, 1000)
+    update()
+    const id = setInterval(update, 1000)
     return () => clearInterval(id)
   }, [expiresAt])
+
+  if (remaining === null) return null
 
   const expired = remaining <= 0
   return (
