@@ -45,3 +45,7 @@ packages/db/src/generated/
 .cache/
 .parcel-cache/
 .eslintcache
+
+# Wireframe reference snapshots (mantidos fora do git, fonte: design)
+tpc-painel-v*/
+tpc-painel-v*.zip
