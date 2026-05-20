@@ -127,8 +127,6 @@ export const DashboardView = ({ firstName, avatar, saldo, atividade }: Props) =>
             href="/catalogo/presencial"
             title="Solicitar serviço"
             subtitle="Stage 1, Pop & Bang, DPF"
-            disabled
-            badge="Sprint 2"
             icon={
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M14.7 6.3a1 1 0 0 1 0 1.4l-1.3 1.3a1 1 0 0 0 0 1.4l1.3 1.3a1 1 0 0 1 0 1.4l-2.6 2.6a1 1 0 0 1-1.4 0l-1.3-1.3a1 1 0 0 0-1.4 0l-1.3 1.3a1 1 0 0 1-1.4 0L3 12.9a1 1 0 0 1 0-1.4l5.6-5.6a1 1 0 0 1 1.4 0z" />

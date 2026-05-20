@@ -332,11 +332,11 @@ pnpm typecheck
 - [x] Job: notify-whatsapp + notify-email pós-compra (stubs com BullMQ)
 
 ### Sprint 2 — Catálogo + Agendar (resgate presencial)
-- [ ] Tela: Catálogo presencial (com hero, combos, filtros)
-- [ ] Tela: Detalhe do Serviço (adaptativo: performance/aesthetic/config)
-- [ ] Tela: Agendar (calendar, multi-dia, política cancelamento)
+- [x] Tela: Catálogo presencial (sem combos ainda, filtro de compatibilidade pelo carro ativo)
+- [x] Tela: Detalhe do Serviço (adaptativo: performance/aesthetic/config)
+- [x] Tela: Agendar (calendar, multi-dia, política cancelamento)
 - [x] Tela: Garagem (3 carros, ativo, status sobrepõe)
-- [ ] Reserva de saldo + job expirar reserva em 24h
+- [x] Reserva de saldo (job expirar reserva 24h fica pra PR seguinte)
 
 ### Sprint 3 — File service
 - [ ] Tela: Catálogo "Por arquivo" (tab no Catálogo)
