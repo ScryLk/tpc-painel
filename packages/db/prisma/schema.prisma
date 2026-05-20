@@ -330,16 +330,21 @@ model SavedCard {
 
 model Solicitacao {
   id             String            @id @default(uuid())
+  protocol       String            @unique
   userId         String
   carId          String
   serviceId      String
   status         SolicitacaoStatus @default(PENDENTE)
   scheduledDate  DateTime
+  endDate        DateTime?
   slot           Slot
   observations   String?
   pointsReserved Int               @default(0)
   pointsDebited  Int               @default(0)
+  cancelReason   String?
+  refundPct      Int?
   confirmedAt    DateTime?
+  startedAt      DateTime?
   cancelledAt    DateTime?
   completedAt    DateTime?
   createdAt      DateTime          @default(now())
