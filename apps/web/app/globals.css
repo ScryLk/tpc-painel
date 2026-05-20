@@ -69,6 +69,26 @@
   }
 }
 
+@keyframes tpc-hero-zoom {
+  0% {
+    transform: scale(1) translateX(0);
+  }
+  100% {
+    transform: scale(1.08) translateX(-14px);
+  }
+}
+
+@keyframes tpc-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 html,
 body {
   height: 100%;
@@ -104,4 +124,31 @@ body {
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--color-tpc-text-tertiary);
+}
+
+/* Clerk footer area: forca transparencia em qualquer wrapper interno do
+   Clerk no rodape do card de auth, evitando bg cinza herdado de classes
+   cl-internal-* que nao da pra atingir via appearance.elements. Note que
+   border zerada so vai nos descendentes (nao no footer raiz), pra deixar
+   livre adicionar border-top separadora via appearance. */
+.cl-footer,
+.cl-footer *,
+.cl-footerAction,
+.cl-footerAction * {
+  background: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+.cl-footer *,
+.cl-footerAction * {
+  border: 0 !important;
+}
+
+/* Centraliza icone + texto dentro do botao social (Continuar com Google). */
+.cl-socialButtonsBlockButton {
+  justify-content: center !important;
+  gap: 0.625rem !important;
+}
+.cl-socialButtonsBlockButton > * {
+  flex: 0 0 auto !important;
 }
