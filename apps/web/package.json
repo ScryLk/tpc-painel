@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --port 3000",
+    "dev:https": "next dev --port 3000 --experimental-https",
     "build": "next build",
     "start": "next start",
     "lint": "echo 'web lint: configure on Sprint 1+'",
@@ -11,6 +12,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@clerk/localizations": "^4.6.6",
     "@clerk/nextjs": "^6.18.0",
     "@tpc/lib": "workspace:*",
     "@tpc/ui": "workspace:*",
