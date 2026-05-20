@@ -1,26 +1,33 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 
 import { useApi } from '@/lib/api/client'
 import { type CreateCarBody, type MotorType, normalizePlate } from '@tpc/lib/validators'
-import { Button, Card, ScreenChrome, cn } from '@tpc/ui'
+import { Button, Card, cn } from '@tpc/ui'
 
-const BRANDS = [
-  'Volkswagen',
-  'Audi',
-  'BMW',
-  'Porsche',
-  'Toyota',
-  'Mercedes',
-  'Ford',
-  'Chevrolet',
-  'Renault',
-  'Fiat',
-  'Honda',
-  'Hyundai',
+const BRANDS: Array<{
+  name: string
+  slug: string
+  logo: string
+  mono?: boolean
+}> = [
+  { name: 'Volkswagen', slug: 'volkswagen', logo: '/logos/volkswagen.png' },
+  { name: 'Audi', slug: 'audi', logo: '/logos/audi.png', mono: true },
+  { name: 'BMW', slug: 'bmw', logo: '/logos/bmw.png' },
+  { name: 'Porsche', slug: 'porsche', logo: '/logos/porsche.png', mono: true },
+  { name: 'Toyota', slug: 'toyota', logo: '/logos/toyota.png' },
+  { name: 'Mercedes', slug: 'mercedes', logo: '/logos/mercedes.png' },
+  { name: 'Ford', slug: 'ford', logo: '/logos/ford.png' },
+  { name: 'Chevrolet', slug: 'chevrolet', logo: '/logos/chevrolet.png', mono: true },
+  { name: 'Renault', slug: 'renault', logo: '/logos/renault.png', mono: true },
+  { name: 'Fiat', slug: 'fiat', logo: '/logos/fiat.png', mono: true },
+  { name: 'Honda', slug: 'honda', logo: '/logos/honda.png' },
+  { name: 'Hyundai', slug: 'hyundai', logo: '/logos/hyundai.svg', mono: true },
 ]
+
+const isKnownBrand = (name: string | undefined) =>
+  Boolean(name && BRANDS.some((b) => b.name === name))
 
 const MOTOR_OPTIONS: Array<{ value: MotorType; label: string; sub: string }> = [
   { value: 'gasoline', label: 'Gasolina', sub: 'Aspirado/turbo a gasolina' },
@@ -36,8 +43,12 @@ const currentYear = new Date().getFullYear()
 
 type Draft = Partial<CreateCarBody>
 
-export const AdicionarCarroView = () => {
-  const router = useRouter()
+interface AddCarWizardProps {
+  onClose: () => void
+  onSuccess: (carId: string) => void
+}
+
+export const AddCarWizard = ({ onClose, onSuccess }: AddCarWizardProps) => {
   const api = useApi()
   const [step, setStep] = useState(1)
   const [draft, setDraft] = useState<Draft>({})
@@ -66,7 +77,7 @@ export const AdicionarCarroView = () => {
     setError(null)
     startTransition(async () => {
       try {
-        await api.post<{ car: { id: string } }>('/me/cars', {
+        const res = await api.post<{ car: { id: string } }>('/me/cars', {
           brand: draft.brand,
           model: draft.model,
           year: draft.year,
@@ -74,7 +85,7 @@ export const AdicionarCarroView = () => {
           plate: draft.plate,
           ...(draft.color ? { color: draft.color } : {}),
         })
-        router.push('/garagem')
+        onSuccess(res.car.id)
       } catch (err) {
         const m = err instanceof Error ? err.message : 'Falha ao adicionar carro.'
         setError(m)
@@ -94,7 +105,7 @@ export const AdicionarCarroView = () => {
 
   const back = () => {
     if (step === 1) {
-      router.push('/garagem')
+      onClose()
       return
     }
     setStep((s) => s - 1)
@@ -102,17 +113,41 @@ export const AdicionarCarroView = () => {
   }
 
   return (
-    <ScreenChrome>
-      <div className="flex items-center gap-3 px-5 pt-3">
+    <div className="flex h-full flex-col">
+      <header className="flex items-center gap-3 border-b border-tpc-border px-5 py-4">
         <button
           type="button"
           onClick={back}
-          aria-label="Voltar"
-          className="flex h-8 w-8 items-center justify-center rounded-full text-tpc-text transition hover:bg-tpc-elevated"
+          aria-label={step === 1 ? 'Fechar' : 'Voltar'}
+          className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-tpc-text transition hover:bg-tpc-elevated"
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M15 18l-6-6 6-6" />
-          </svg>
+          {step === 1 ? (
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          ) : (
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+          )}
         </button>
         <div className="flex flex-1 gap-1">
           {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
@@ -132,9 +167,9 @@ export const AdicionarCarroView = () => {
         <div className="min-w-[32px] text-right font-mono text-[10px] tracking-[0.1em] text-tpc-text-tertiary">
           {step}/{TOTAL_STEPS}
         </div>
-      </div>
+      </header>
 
-      <main className="tpc-scroll flex flex-1 flex-col gap-5 overflow-y-auto px-6 pt-6">
+      <main className="tpc-scroll flex flex-1 flex-col gap-4 overflow-y-auto px-5 pb-12 pt-5 [mask-image:linear-gradient(to_bottom,black_calc(100%-48px),transparent)]">
         {step === 1 && <BrandStep draft={draft} setDraft={setDraft} />}
         {step === 2 && <ModelStep draft={draft} setDraft={setDraft} />}
         {step === 3 && <YearStep draft={draft} setDraft={setDraft} />}
@@ -148,7 +183,7 @@ export const AdicionarCarroView = () => {
         )}
       </main>
 
-      <div className="px-6 pb-6 pt-3">
+      <footer className="border-t border-tpc-border px-5 py-4">
         <Button fullWidth onClick={next} disabled={!canAdvance || isPending}>
           {step === TOTAL_STEPS
             ? isPending
@@ -156,8 +191,8 @@ export const AdicionarCarroView = () => {
               : 'Adicionar carro'
             : 'Continuar'}
         </Button>
-      </div>
-    </ScreenChrome>
+      </footer>
+    </div>
   )
 }
 
@@ -166,44 +201,76 @@ interface StepProps {
   setDraft: React.Dispatch<React.SetStateAction<Draft>>
 }
 
+function BrandLogo({
+  src,
+  alt,
+  mono,
+}: {
+  src: string
+  alt: string
+  mono?: boolean
+}) {
+  const [errored, setErrored] = useState(false)
+  if (errored) {
+    return (
+      <span
+        aria-hidden
+        className="flex h-7 w-7 items-center justify-center rounded-full border border-tpc-border-strong font-mono text-[10px] font-bold uppercase tracking-wider text-tpc-text-tertiary"
+      >
+        {alt[0]}
+      </span>
+    )
+  }
+  return (
+    <img
+      src={src}
+      alt={alt}
+      loading="lazy"
+      onError={() => setErrored(true)}
+      className={cn(
+        'h-8 w-auto max-w-[52px] object-contain',
+        mono && 'brightness-0 invert',
+      )}
+    />
+  )
+}
+
 function BrandStep({ draft, setDraft }: StepProps) {
   const [other, setOther] = useState(
-    draft.brand && !BRANDS.includes(draft.brand) ? draft.brand : '',
+    draft.brand && !isKnownBrand(draft.brand) ? draft.brand : '',
   )
-  const showOther = Boolean(other) || (!!draft.brand && !BRANDS.includes(draft.brand))
+  const showOther = Boolean(other) || (!!draft.brand && !isKnownBrand(draft.brand))
 
   return (
     <>
       <div className="tpc-eyebrow">Marca</div>
-      <h1 className="text-3xl font-bold leading-[0.95] tracking-tight">
-        Qual a marca
-        <br />
-        do teu carro?
+      <h1 className="text-[26px] font-bold leading-tight tracking-tight md:text-[28px]">
+        Qual a marca do teu carro?
       </h1>
       <p className="text-sm text-tpc-text-secondary">
-        Picka uma das mais comuns ou digita a tua.
+        Escolhe uma das marcas mais comuns ou digita a tua.
       </p>
 
-      <div className="grid grid-cols-3 gap-2.5">
+      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
         {BRANDS.map((b) => {
-          const selected = draft.brand === b
+          const selected = draft.brand === b.name
           return (
             <button
-              key={b}
+              key={b.slug}
               type="button"
               onClick={() => {
-                setDraft((d) => ({ ...d, brand: b }))
+                setDraft((d) => ({ ...d, brand: b.name }))
                 setOther('')
               }}
               className={cn(
-                'flex aspect-square flex-col items-center justify-center rounded-2xl border p-2 text-center transition',
+                'flex h-[96px] cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border p-2 text-center transition md:h-[104px]',
                 selected
                   ? 'border-tpc-red/60 bg-tpc-red/10 text-tpc-text'
-                  : 'border-tpc-border bg-tpc-surface text-tpc-text-secondary',
+                  : 'border-tpc-border bg-tpc-surface text-tpc-text-secondary hover:border-tpc-red/60 hover:bg-tpc-red/[0.04] hover:text-tpc-text',
               )}
             >
-              <span className="text-sm font-semibold tracking-tight">{b.slice(0, 3)}</span>
-              <span className="mt-1 text-[10px] leading-tight text-tpc-text-tertiary">{b}</span>
+              <BrandLogo src={b.logo} alt={b.name} mono={b.mono} />
+              <span className="text-[12px] font-semibold tracking-tight">{b.name}</span>
             </button>
           )
         })}
@@ -233,7 +300,7 @@ function ModelStep({ draft, setDraft }: StepProps) {
   return (
     <>
       <div className="tpc-eyebrow">Modelo</div>
-      <h1 className="text-3xl font-bold leading-[0.95] tracking-tight">
+      <h1 className="text-[26px] font-bold leading-tight tracking-tight md:text-[28px]">
         Qual o modelo?
       </h1>
       <p className="text-sm text-tpc-text-secondary">
@@ -256,7 +323,7 @@ function YearStep({ draft, setDraft }: StepProps) {
   return (
     <>
       <div className="tpc-eyebrow">Ano</div>
-      <h1 className="text-3xl font-bold leading-[0.95] tracking-tight">
+      <h1 className="text-[26px] font-bold leading-tight tracking-tight md:text-[28px]">
         Qual o ano?
       </h1>
       <p className="text-sm text-tpc-text-secondary">
@@ -285,7 +352,7 @@ function MotorStep({ draft, setDraft }: StepProps) {
   return (
     <>
       <div className="tpc-eyebrow">Motor</div>
-      <h1 className="text-3xl font-bold leading-[0.95] tracking-tight">
+      <h1 className="text-[26px] font-bold leading-tight tracking-tight md:text-[28px]">
         Qual o motor?
       </h1>
       <p className="text-sm text-tpc-text-secondary">
@@ -300,17 +367,28 @@ function MotorStep({ draft, setDraft }: StepProps) {
               key={m.value}
               onClick={() => setDraft((d) => ({ ...d, motorType: m.value }))}
               className={cn(
-                'flex cursor-pointer items-center gap-3.5 transition',
+                'flex cursor-pointer items-center gap-3.5 transition hover:border-tpc-red/40',
                 selected ? 'border-tpc-red/55 bg-tpc-red/[0.06]' : '',
               )}
             >
               <div
                 className={cn(
                   'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border',
-                  selected ? 'border-tpc-red bg-tpc-red text-tpc-text' : 'border-tpc-border bg-tpc-elevated-2 text-tpc-text-secondary',
+                  selected
+                    ? 'border-tpc-red bg-tpc-red text-tpc-text'
+                    : 'border-tpc-border bg-tpc-elevated-2 text-tpc-text-secondary',
                 )}
               >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
                   <rect x="6" y="8" width="12" height="10" rx="1" />
                   <path d="M4 12h2M18 12h2M9 6V8M15 6V8M9 18v2M15 18v2" />
                 </svg>
@@ -328,7 +406,16 @@ function MotorStep({ draft, setDraft }: StepProps) {
                 )}
               >
                 {selected && (
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                  <svg
+                    width="11"
+                    height="11"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="white"
+                    strokeWidth="3.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
                     <path d="M5 12l5 5L20 7" />
                   </svg>
                 )}
@@ -347,11 +434,11 @@ function PlateStep({ draft, setDraft }: StepProps) {
   return (
     <>
       <div className="tpc-eyebrow">Placa</div>
-      <h1 className="text-3xl font-bold leading-[0.95] tracking-tight">
+      <h1 className="text-[26px] font-bold leading-tight tracking-tight md:text-[28px]">
         Falta só a placa
       </h1>
       <p className="text-sm text-tpc-text-secondary">
-        Mercosul (ABC1D23) ou antiga (ABC1234), tanto faz.
+        Formato Mercosul (ABC1D23) ou antigo (ABC1234).
       </p>
 
       {showPreview && (
@@ -386,4 +473,5 @@ function PlateStep({ draft, setDraft }: StepProps) {
   )
 }
 
-const formatPlate = (raw: string): string => raw.replace(/[^A-Z0-9]/g, '').toUpperCase().slice(0, 7)
+const formatPlate = (raw: string): string =>
+  raw.replace(/[^A-Z0-9]/g, '').toUpperCase().slice(0, 7)

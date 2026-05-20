@@ -1,23 +1,14 @@
 'use client'
 
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { useState, useTransition } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useEffect, useState, useTransition } from 'react'
 
 import { useApi } from '@/lib/api/client'
-import {
-  BackButton,
-  Button,
-  Card,
-  CarSilhouette,
-  type CarType,
-  DiagonalStripes,
-  PointsDisplay,
-  ScreenChrome,
-  TPCHeader,
-  cn,
-} from '@tpc/ui'
+import { Button, Card, DiagonalStripes, cn } from '@tpc/ui'
 
+import { ClientShell } from '@/components/layout/ClientShell'
+
+import { AddCarModal } from './_components/AddCarModal'
 import type { CarItem } from './page'
 
 interface Saldo {
@@ -33,252 +24,332 @@ interface Props {
 }
 
 const mapStateLabel: Record<CarItem['mapState'], string> = {
-  STOCK: 'Stock',
-  STAGE1: 'Stage 1 ativo',
-  STAGE2: 'Stage 2 ativo',
-  STAGE3: 'Stage 3 ativo',
-}
-
-const carTypeFromMotor = (motor: string): CarType => {
-  // Heurística minima até termos o type do carro no DB ou inferido por modelo.
-  if (motor === 'diesel') return 'pickup'
-  if (motor === 'atmo') return 'coupe'
-  return 'sedan'
+  STOCK: 'STOCK',
+  STAGE1: 'STAGE 1 ATIVO',
+  STAGE2: 'STAGE 2 ATIVO',
+  STAGE3: 'STAGE 3 ATIVO',
 }
 
 export const GaragemView = ({ cars, meta, saldo }: Props) => {
-  const router = useRouter()
   const atLimit = meta.count >= meta.limit
   const isEmpty = meta.count === 0
+  const searchParams = useSearchParams()
+  const [showAddModal, setShowAddModal] = useState(false)
 
-  if (isEmpty) {
-    return <GaragemEmpty saldo={saldo} onBack={() => router.push('/dashboard')} />
-  }
+  useEffect(() => {
+    if (searchParams.get('add') === '1') {
+      setShowAddModal(true)
+      window.history.replaceState({}, '', '/garagem')
+    }
+  }, [searchParams])
+
+  const openAdd = () => setShowAddModal(true)
 
   return (
-    <ScreenChrome>
-      <TPCHeader
-        back={<BackButton onClick={() => router.push('/dashboard')} />}
-        title="Garagem"
-        subtitle={`${meta.count} de ${meta.limit} carros`}
-        right={<PointsDisplay balance={saldo.available} compact />}
-      />
-
-      <div className="tpc-scroll relative flex-1 overflow-y-auto p-4">
-        <div className="flex flex-col gap-3 pb-24">
-          {cars.map((car) => (
-            <GarageCarCard key={car.id} car={car} />
-          ))}
-
-          {atLimit && (
-            <Card className="flex items-center gap-3 border-dashed bg-tpc-elevated-2 p-3.5">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-tpc-yellow/40 bg-tpc-yellow/10 text-tpc-yellow">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="9" />
-                  <path d="M12 8v4M12 16v.01" />
-                </svg>
-              </div>
-              <div>
-                <div className="text-sm font-semibold tracking-tight">Limite atingido</div>
-                <div className="text-xs text-tpc-text-secondary">
-                  Máximo {meta.limit} carros. Remove um pra adicionar outro.
-                </div>
-              </div>
-            </Card>
-          )}
-        </div>
-
-        <Link
-          href={atLimit ? '#' : '/garagem/adicionar'}
-          aria-disabled={atLimit}
-          className={cn(
-            'absolute bottom-5 right-5 flex h-14 w-14 items-center justify-center rounded-full transition',
-            atLimit
-              ? 'cursor-not-allowed border border-tpc-border bg-tpc-surface text-tpc-text-tertiary'
-              : 'bg-tpc-red text-tpc-text shadow-[0_8px_24px_rgba(225,38,28,0.4),0_0_0_1px_rgba(225,38,28,0.5)] hover:bg-tpc-red-dark',
-          )}
-        >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 5v14M5 12h14" />
-          </svg>
-        </Link>
-      </div>
-    </ScreenChrome>
+    <ClientShell breadcrumbs={['Garagem']} saldoAvailable={saldo.available}>
+      {isEmpty ? (
+        <GaragemEmpty onAdd={openAdd} />
+      ) : (
+        <GaragemDesktop
+          cars={cars}
+          meta={meta}
+          atLimit={atLimit}
+          onAdd={openAdd}
+        />
+      )}
+      <AddCarModal open={showAddModal} onClose={() => setShowAddModal(false)} />
+    </ClientShell>
   )
 }
 
-function GaragemEmpty({ saldo, onBack }: { saldo: Saldo; onBack: () => void }) {
+const GaragemDesktop = ({
+  cars,
+  meta,
+  atLimit,
+  onAdd,
+}: {
+  cars: CarItem[]
+  meta: Props['meta']
+  atLimit: boolean
+  onAdd: () => void
+}) => {
+  const [selectedId, setSelectedId] = useState<string>(cars[0]?.id ?? '')
+  const selected = cars.find((c) => c.id === selectedId) ?? cars[0]
+  const activeCar = cars.find((c) => c.isActive)
+
+  if (!selected) return null
+
   return (
-    <ScreenChrome>
-      <TPCHeader
-        back={<BackButton onClick={onBack} />}
-        title="Garagem"
-        subtitle="nenhum carro ainda"
-        right={<PointsDisplay balance={saldo.available} compact />}
-      />
-
-      <main className="relative flex flex-1 flex-col items-center justify-center px-8 text-center">
-        <div className="pointer-events-none absolute right-0 top-0 opacity-35">
-          <DiagonalStripes width={200} height={200} mask="top-right" />
+    <div className="px-5 py-6 md:px-8 md:py-7">
+      <div className="mb-5 flex flex-col items-start justify-between gap-3 md:flex-row md:items-center">
+        <div>
+          <h1 className="text-[26px] font-bold leading-tight tracking-[-0.03em] text-tpc-text">
+            Minha garagem
+          </h1>
+          <p className="mt-1 text-[13px] text-tpc-text-secondary">
+            {meta.count} de {meta.limit} carros cadastrados
+            {activeCar && ` · ${activeCar.brand} ${activeCar.model} é o ativo`}
+          </p>
         </div>
+        <AddCarButton atLimit={atLimit} onAdd={onAdd} />
+      </div>
 
-        <div className="relative mb-7 flex h-32 w-56 items-center justify-center">
-          <div
-            className="absolute inset-0"
-            style={{
-              background:
-                'radial-gradient(ellipse at 50% 60%, rgba(225,38,28,0.15) 0%, transparent 65%)',
-            }}
-          />
-          <CarSilhouette type="sedan" width={210} />
-          <div className="absolute right-5 top-5 flex h-8 w-8 items-center justify-center rounded-full border-[2px] border-tpc-bg bg-tpc-red text-tpc-text shadow-[0_4px_14px_rgba(225,38,28,0.45)]">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 5v14M5 12h14" />
-            </svg>
+      {atLimit && (
+        <div className="mb-5 flex items-center gap-2.5 rounded-[10px] border border-tpc-yellow/30 bg-tpc-yellow/[0.06] px-3.5 py-2.5">
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="text-tpc-yellow"
+            aria-hidden
+          >
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 8v4M12 16v.01" />
+          </svg>
+          <div className="flex-1 text-xs leading-relaxed text-tpc-text-secondary">
+            <span className="font-semibold text-tpc-text">Limite atingido.</span>{' '}
+            Máximo {meta.limit} carros por conta. Remove um pra adicionar outro.
           </div>
         </div>
+      )}
 
-        <h1 className="mb-2 text-2xl font-bold tracking-tight">Adiciona teu carro</h1>
-        <p className="max-w-[280px] text-sm leading-relaxed text-tpc-text-secondary">
-          Cadastra um carro pra ver serviços compatíveis e acompanhar garantias.
-        </p>
-
-        <div className="mt-7 w-full max-w-[280px]">
-          <Link href="/garagem/adicionar" className="block">
-            <Button
-              fullWidth
-              leading={
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 5v14M5 12h14" />
-                </svg>
-              }
-            >
-              Adicionar carro
-            </Button>
-          </Link>
+      <div className="grid gap-4 lg:grid-cols-[1fr_380px]">
+        <div className="flex flex-col gap-2.5">
+          {cars.map((c) => (
+            <GarageCarRow
+              key={c.id}
+              car={c}
+              selected={c.id === selected.id}
+              onSelect={() => setSelectedId(c.id)}
+            />
+          ))}
         </div>
 
-        <div className="mt-5 font-mono text-[9px] uppercase tracking-[0.1em] text-tpc-text-tertiary">
-          até 3 carros por conta
+        <div className="lg:sticky lg:top-4 lg:self-start">
+          <GarageSidepanel car={selected} />
         </div>
-      </main>
-    </ScreenChrome>
+      </div>
+    </div>
   )
 }
 
-function GarageCarCard({ car }: { car: CarItem }) {
+const AddCarButton = ({
+  atLimit,
+  onAdd,
+}: {
+  atLimit: boolean
+  onAdd: () => void
+}) => {
+  const inner = (
+    <>
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+      >
+        <path d="M12 5v14M5 12h14" />
+      </svg>
+      Adicionar carro
+    </>
+  )
+  if (atLimit) {
+    return (
+      <button
+        type="button"
+        disabled
+        className="inline-flex cursor-not-allowed items-center gap-2 rounded-[10px] border border-tpc-border bg-tpc-surface px-4 py-2.5 text-[13px] font-semibold text-tpc-text-tertiary opacity-60"
+      >
+        {inner}
+      </button>
+    )
+  }
+  return (
+    <button
+      type="button"
+      onClick={onAdd}
+      className="inline-flex cursor-pointer items-center gap-2 rounded-[10px] bg-tpc-red px-4 py-2.5 text-[13px] font-semibold text-tpc-text shadow-md shadow-tpc-red/20 transition hover:bg-tpc-red-dark"
+    >
+      {inner}
+    </button>
+  )
+}
+
+const GarageCarRow = ({
+  car,
+  selected,
+  onSelect,
+}: {
+  car: CarItem
+  selected: boolean
+  onSelect: () => void
+}) => {
+  const status = computeStatus(car)
+  return (
+    <Card
+      onClick={onSelect}
+      className={cn(
+        'cursor-pointer p-0 transition',
+        selected
+          ? 'border-tpc-red/60 shadow-[0_0_18px_rgba(225,38,28,0.13)]'
+          : 'hover:border-tpc-border-strong',
+      )}
+    >
+      <div className="flex items-center gap-4 p-3.5">
+        <div className="relative h-[75px] w-[130px] flex-shrink-0">
+          <img
+            src="/sprites/car-neon.png"
+            alt=""
+            aria-hidden
+            className="absolute inset-0 h-full w-full object-contain"
+          />
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="mb-1 flex items-center gap-2">
+            <span className="truncate text-base font-bold tracking-[-0.02em] text-tpc-text">
+              {car.brand} {car.model}
+            </span>
+            {car.isActive && (
+              <span className="rounded-[3px] bg-tpc-red px-1.5 py-[2px] font-mono text-[7px] font-bold uppercase tracking-[0.18em] text-tpc-text">
+                Ativo
+              </span>
+            )}
+          </div>
+          <div className="mb-1.5 font-mono text-[10px] tracking-[0.04em] text-tpc-text-secondary">
+            {car.year} · {car.motorType.toUpperCase()}
+          </div>
+          <span
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-full border px-2 py-[3px] font-mono text-[8px] font-bold uppercase tracking-[0.12em]',
+              status.classes,
+            )}
+          >
+            {status.pulse && (
+              <span
+                className={cn(
+                  'inline-block h-[5px] w-[5px] animate-[tpc-pulse_1.8s_ease-in-out_infinite] rounded-full shadow-[0_0_5px_currentColor]',
+                  status.dotClass,
+                )}
+              />
+            )}
+            {status.label}
+          </span>
+        </div>
+
+        <div className="flex flex-shrink-0 items-center gap-3">
+          <div className="rounded border border-tpc-border-strong px-2 py-[5px] font-mono text-[11px] font-semibold tracking-[0.1em] text-tpc-text">
+            {car.plate}
+          </div>
+          {selected && (
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="text-tpc-red"
+              aria-hidden
+            >
+              <path d="M9 6l6 6-6 6" />
+            </svg>
+          )}
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+const GarageSidepanel = ({ car }: { car: CarItem }) => {
   const router = useRouter()
   const api = useApi()
   const [isPending, startTransition] = useTransition()
 
-  const status =
-    car.activeOrder
-      ? car.activeOrder.type === 'remap'
-        ? { label: 'Em mapeamento', color: 'tpc-red', pulse: true }
-        : { label: 'Em serviço', color: 'tpc-yellow', pulse: true }
-      : car.mapState === 'STOCK'
-        ? { label: mapStateLabel.STOCK, color: 'tpc-text-tertiary', pulse: false }
-        : { label: mapStateLabel[car.mapState], color: 'tpc-green', pulse: false }
-
   const activate = () => {
+    if (car.isActive) return
     startTransition(async () => {
       try {
         await api.post(`/me/cars/${car.id}/activate`)
         router.refresh()
       } catch {
-        /* swallow: erro genérico cai no nada */
+        /* swallow */
       }
     })
   }
 
-  const primaryLabel = car.activeOrder
-    ? 'Ver pedido'
-    : car.isActive
-      ? 'Solicitar serviço'
-      : 'Tornar ativo'
-  const primaryAction = () => {
-    if (car.activeOrder) {
-      router.push(
-        car.activeOrder.type === 'remap'
-          ? `/pedido/${car.activeOrder.id}`
-          : `/agendamento/${car.activeOrder.id}`,
-      )
-      return
-    }
-    if (car.isActive) {
-      router.push('/catalogo/presencial')
-      return
-    }
-    activate()
-  }
-
   return (
-    <Card className="overflow-hidden p-0" elevated={false}>
-      <div
-        className={cn(
-          'relative h-32',
-          'bg-[radial-gradient(ellipse_at_50%_100%,rgba(225,38,28,0.13)_0%,transparent_60%),linear-gradient(180deg,#050505,#0a0a0a)]',
-        )}
-      >
-        <div className="absolute right-0 top-0 opacity-50">
-          <DiagonalStripes width={110} height={110} thickness={1.5} spacing={9} mask="top-right" />
-        </div>
-        <div className="absolute inset-0 flex items-center justify-center">
-          <CarSilhouette type={carTypeFromMotor(car.motorType)} width={260} />
-        </div>
-
-        <div
-          className={cn(
-            'absolute left-3 top-3 flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-[9px] font-semibold uppercase tracking-[0.1em]',
-            status.color === 'tpc-red' && 'border-tpc-red/30 bg-tpc-red/10 text-tpc-red',
-            status.color === 'tpc-yellow' &&
-              'border-tpc-yellow/30 bg-tpc-yellow/10 text-tpc-yellow',
-            status.color === 'tpc-green' && 'border-tpc-green/30 bg-tpc-green/10 text-tpc-green',
-            status.color === 'tpc-text-tertiary' &&
-              'border-tpc-border bg-tpc-elevated-2 text-tpc-text-tertiary',
-          )}
-        >
-          {status.pulse && (
-            <span
-              className={cn(
-                'inline-block h-1.5 w-1.5 animate-[tpc-pulse_1.8s_ease-in-out_infinite] rounded-full',
-                status.color === 'tpc-red' && 'bg-tpc-red shadow-[0_0_5px_currentColor]',
-                status.color === 'tpc-yellow' && 'bg-tpc-yellow shadow-[0_0_5px_currentColor]',
-              )}
-            />
-          )}
-          {status.label}
-        </div>
-
+    <Card
+      className="overflow-hidden border-tpc-red/50 p-0 shadow-[0_0_24px_rgba(225,38,28,0.13)]"
+      elevated={false}
+    >
+      <div className="relative h-[180px]">
+        <img
+          src="/sprites/car-neon.png"
+          alt=""
+          aria-hidden
+          className="absolute inset-0 h-full w-full object-contain px-6"
+        />
         {car.isActive && (
-          <div className="absolute right-3 top-3 flex items-center gap-1 rounded-full bg-tpc-red px-2.5 py-1 font-mono text-[9px] font-bold uppercase tracking-[0.14em] text-tpc-text shadow-[0_2px_8px_rgba(225,38,28,0.4)]">
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+          <div className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-tpc-red px-2.5 py-1 font-mono text-[9px] font-bold uppercase tracking-[0.14em] text-tpc-text shadow-[0_2px_8px_rgba(225,38,28,0.4)]">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
               <path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z" />
             </svg>
-            ATIVO
+            Ativo
           </div>
         )}
       </div>
 
-      <div className="p-4">
-        <div className="flex items-start justify-between gap-3">
+      <div className="p-5">
+        <div className="mb-3.5 flex items-start justify-between gap-2.5">
           <div>
-            <div className="text-lg font-bold leading-tight tracking-tight">
+            <div className="text-xl font-bold tracking-[-0.03em] text-tpc-text">
               {car.brand} {car.model}
             </div>
-            <div className="mt-0.5 font-mono text-[11px] tracking-wider text-tpc-text-secondary">
+            <div className="mt-1 font-mono text-[11px] tracking-[0.04em] text-tpc-text-secondary">
               {car.year} · {car.motorType.toUpperCase()}
             </div>
           </div>
-          <div className="rounded border border-tpc-border-strong px-2.5 py-1 font-mono text-[11px] font-semibold tracking-[0.1em]">
+          <div className="rounded border border-tpc-border-strong px-2 py-[5px] font-mono text-[11px] font-semibold tracking-[0.1em] text-tpc-text">
             {car.plate}
+          </div>
+        </div>
+
+        <div className="mb-3.5 grid grid-cols-2 gap-2">
+          <div className="rounded-lg border border-tpc-border bg-tpc-surface p-2.5">
+            <div className="font-mono text-[8px] uppercase tracking-[0.18em] text-tpc-text-tertiary">
+              Estado do mapa
+            </div>
+            <div className="tpc-num mt-1 text-sm font-semibold tracking-[-0.02em] text-tpc-text">
+              {mapStateLabel[car.mapState]}
+            </div>
+          </div>
+          <div className="rounded-lg border border-tpc-border bg-tpc-surface p-2.5">
+            <div className="font-mono text-[8px] uppercase tracking-[0.18em] text-tpc-text-tertiary">
+              Pedidos
+            </div>
+            <div className="tpc-num mt-1 text-sm font-semibold tracking-[-0.02em] text-tpc-text">
+              {car.activeOrder ? 1 + car.extraOrders : car.extraOrders}
+            </div>
           </div>
         </div>
 
         {car.activeOrder && (
           <div
             className={cn(
-              'mt-3 flex items-center gap-2.5 rounded-lg border px-3 py-2.5',
+              'mb-3.5 flex items-center gap-2.5 rounded-lg border px-3 py-2.5',
               car.activeOrder.type === 'remap'
                 ? 'border-tpc-red/30 bg-tpc-red/5'
                 : 'border-tpc-yellow/30 bg-tpc-yellow/5',
@@ -289,32 +360,31 @@ function GarageCarCard({ car }: { car: CarItem }) {
               height="14"
               viewBox="0 0 24 24"
               fill="none"
+              stroke="currentColor"
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
               className={car.activeOrder.type === 'remap' ? 'text-tpc-red' : 'text-tpc-yellow'}
-              stroke="currentColor"
+              aria-hidden
             >
               <circle cx="12" cy="12" r="9" />
               <path d="M12 7v5l3 2" />
             </svg>
-            <div className="flex-1 text-xs leading-snug tracking-tight">
+            <div className="flex-1 text-xs leading-snug tracking-tight text-tpc-text">
               {car.activeOrder.label}
             </div>
           </div>
         )}
 
-        {car.extraOrders > 0 && (
-          <div className="mt-1.5 text-right font-mono text-[9px] uppercase tracking-[0.08em] text-tpc-text-tertiary">
-            + {car.extraOrders} {car.extraOrders === 1 ? 'pedido extra' : 'pedidos extras'}
-          </div>
-        )}
-
         {car.warranty && !car.activeOrder && (
-          <div className="mt-3">
-            <div className="mb-1 flex justify-between font-mono text-[9px] uppercase tracking-[0.1em] text-tpc-text-tertiary">
-              <span>Garantia Stage</span>
-              <span className="text-tpc-text-secondary">{car.warranty.text}</span>
+          <div className="mb-4 rounded-lg border border-tpc-border bg-tpc-surface p-3">
+            <div className="mb-1.5 flex items-center justify-between">
+              <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-tpc-text-tertiary">
+                Garantia
+              </span>
+              <span className="text-[11px] font-medium text-tpc-text-secondary">
+                {car.warranty.text}
+              </span>
             </div>
             <div className="h-1 overflow-hidden rounded bg-tpc-elevated-2">
               <div
@@ -325,17 +395,149 @@ function GarageCarCard({ car }: { car: CarItem }) {
           </div>
         )}
 
-        <div className="mt-3.5 flex gap-2">
-          <Button
-            fullWidth
-            variant={car.activeOrder ? 'secondary' : 'primary'}
-            onClick={primaryAction}
-            disabled={isPending}
-          >
-            {isPending && !car.isActive ? 'Ativando…' : primaryLabel}
-          </Button>
+        <div className="flex flex-col gap-2">
+          {car.activeOrder ? (
+            <Button
+              fullWidth
+              onClick={() =>
+                router.push(
+                  car.activeOrder!.type === 'remap'
+                    ? `/pedido/${car.activeOrder!.id}`
+                    : `/agendamento/${car.activeOrder!.id}`,
+                )
+              }
+            >
+              Ver pedido
+            </Button>
+          ) : car.isActive ? (
+            <Button fullWidth onClick={() => router.push('/catalogo/presencial')}>
+              Solicitar serviço
+            </Button>
+          ) : (
+            <Button fullWidth onClick={activate} disabled={isPending}>
+              {isPending ? 'Ativando…' : 'Tornar ativo'}
+            </Button>
+          )}
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              className="flex-1 px-3 py-2 text-[11px]"
+              onClick={() => router.push('/historico')}
+            >
+              Histórico
+            </Button>
+            <Button
+              variant="secondary"
+              className="flex-1 px-3 py-2 text-[11px]"
+              onClick={() => router.push(`/garagem/${car.id}/editar`)}
+            >
+              Editar
+            </Button>
+          </div>
         </div>
       </div>
     </Card>
+  )
+}
+
+const computeStatus = (car: CarItem) => {
+  if (car.activeOrder) {
+    if (car.activeOrder.type === 'remap') {
+      return {
+        label: 'Em mapeamento',
+        classes: 'border-tpc-red/30 bg-tpc-red/10 text-tpc-red',
+        dotClass: 'bg-tpc-red',
+        pulse: true,
+      }
+    }
+    return {
+      label: 'Em serviço',
+      classes: 'border-tpc-yellow/30 bg-tpc-yellow/10 text-tpc-yellow',
+      dotClass: 'bg-tpc-yellow',
+      pulse: true,
+    }
+  }
+  if (car.mapState === 'STOCK') {
+    return {
+      label: mapStateLabel.STOCK,
+      classes: 'border-tpc-border bg-tpc-elevated-2 text-tpc-text-tertiary',
+      dotClass: '',
+      pulse: false,
+    }
+  }
+  return {
+    label: mapStateLabel[car.mapState],
+    classes: 'border-tpc-green/30 bg-tpc-green/10 text-tpc-green',
+    dotClass: '',
+    pulse: false,
+  }
+}
+
+function GaragemEmpty({ onAdd }: { onAdd: () => void }) {
+  return (
+    <div className="relative flex min-h-full flex-col items-center justify-center px-6 py-12 text-center md:px-10">
+      <div className="pointer-events-none absolute right-0 top-0 opacity-35">
+        <DiagonalStripes width={260} height={260} mask="top-right" />
+      </div>
+      <div className="pointer-events-none absolute bottom-0 left-0 opacity-35">
+        <DiagonalStripes width={260} height={260} mask="bottom-left" />
+      </div>
+
+      <div className="relative mb-8 flex h-56 w-[420px] max-w-full items-center justify-center">
+        <img
+          src="/sprites/car-neon.png"
+          alt="Carro estilizado em neon"
+          className="h-full w-full object-contain"
+        />
+        <div className="absolute right-6 top-6 flex h-10 w-10 items-center justify-center rounded-full border-[2px] border-tpc-bg bg-tpc-red text-tpc-text shadow-[0_4px_14px_rgba(225,38,28,0.45)]">
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+          >
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+        </div>
+      </div>
+
+      <h1 className="mb-2 text-[28px] font-bold tracking-[-0.03em] text-tpc-text">
+        Adiciona teu carro
+      </h1>
+      <p className="max-w-[360px] text-sm leading-relaxed text-tpc-text-secondary">
+        Cadastra um carro pra ver serviços compatíveis e acompanhar garantias. Até 3
+        carros por conta.
+      </p>
+
+      <button
+        type="button"
+        onClick={onAdd}
+        className="mt-7 inline-flex cursor-pointer items-center gap-2 rounded-full bg-tpc-red px-6 py-3 text-sm font-semibold text-tpc-text shadow-lg shadow-tpc-red/40 transition hover:bg-tpc-red-dark"
+      >
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
+          <path d="M12 5v14M5 12h14" />
+        </svg>
+        Adicionar carro
+      </button>
+
+      <div className="mt-5 font-mono text-[9px] uppercase tracking-[0.1em] text-tpc-text-tertiary">
+        até 3 carros por conta
+      </div>
+    </div>
   )
 }

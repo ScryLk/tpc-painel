@@ -33,7 +33,9 @@ export const metadata = { title: 'Garagem · TPC Painel' }
 
 export default async function GaragemPage() {
   const [carsRes, saldo] = await Promise.all([
-    apiGet<{ cars: CarItem[]; meta: { count: number; limit: number } }>('/me/cars'),
+    apiGet<{ cars: CarItem[]; meta: { count: number; limit: number } }>('/me/cars').catch(
+      () => ({ cars: [], meta: { count: 0, limit: 3 } }),
+    ),
     apiGet<Saldo>('/me/saldo').catch(() => ({ available: 0, reserved: 0, total: 0 })),
   ])
 

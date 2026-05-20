@@ -1,7 +1,7 @@
-import { AdicionarCarroView } from './view'
+import { redirect } from 'next/navigation'
 
-export const metadata = { title: 'Adicionar carro · TPC Painel' }
-
+// Rota mantida como deep link: dashboard shortcut e links externos seguem
+// chegando aqui e o modal de adicionar carro abre dentro de /garagem.
 export default function AdicionarCarroPage() {
-  return <AdicionarCarroView />
+  redirect('/garagem?add=1')
 }
