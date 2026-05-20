@@ -12,6 +12,7 @@ import { env } from './lib/env.js'
 import authPlugin from './plugins/auth.js'
 import errorPlugin from './plugins/error.js'
 import prismaPlugin from './plugins/prisma.js'
+import { adminRemapOrdersRoutes } from './routes/admin/remap-orders.js'
 import { adminSolicitacoesRoutes } from './routes/admin/solicitacoes.js'
 import { carRoutes } from './routes/cars.js'
 import { checkoutRoutes } from './routes/checkout.js'
@@ -19,6 +20,8 @@ import { healthRoutes } from './routes/health.js'
 import { meRoutes } from './routes/me.js'
 import { pacotesRoutes } from './routes/pacotes.js'
 import { purchaseRoutes } from './routes/purchases.js'
+import { remapOrdersRoutes } from './routes/remap-orders.js'
+import { remapServicesRoutes } from './routes/remap-services.js'
 import { servicosRoutes } from './routes/servicos.js'
 import { solicitacoesRoutes } from './routes/solicitacoes.js'
 import { webhookRoutes } from './routes/webhooks.js'
@@ -51,6 +54,9 @@ export const buildServer = async (): Promise<FastifyInstance> => {
   await app.register(servicosRoutes)
   await app.register(solicitacoesRoutes)
   await app.register(adminSolicitacoesRoutes)
+  await app.register(remapServicesRoutes)
+  await app.register(remapOrdersRoutes)
+  await app.register(adminRemapOrdersRoutes)
   await app.register(webhookRoutes)
 
   return app
