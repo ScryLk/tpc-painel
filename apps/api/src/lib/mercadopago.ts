@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
+import QRCode from 'qrcode'
+
 import { env } from './env.js'
 
 // Resultado normalizado pra uso interno. Real SDK + mock retornam o mesmo shape.
@@ -36,12 +38,19 @@ const expiresIn30Min = (): string => new Date(Date.now() + 30 * 60_000).toISOStr
 
 // MP-shaped mock payloads. Deterministic enough pra dev/test mas com id unico
 // pra simular comportamento real (idempotencia em webhook via mpPaymentId).
-const mockPixPayment = (input: CreatePixInput): PixPaymentResult => {
+const mockPixPayment = async (input: CreatePixInput): Promise<PixPaymentResult> => {
   const mpPaymentId = `mock-pay-${randomUUID()}`
+  const qrCode = `00020126580014BR.GOV.BCB.PIX0136${mpPaymentId}52040000530398654${(input.amountCents / 100).toFixed(2)}5802BR5913TPC Performance6008Panambi62${mpPaymentId.length.toString().padStart(2, '0')}${mpPaymentId}6304MOCK`
+  const qrCodeBase64 = await QRCode.toDataURL(qrCode, {
+    errorCorrectionLevel: 'M',
+    margin: 1,
+    width: 280,
+    color: { dark: '#000000', light: '#ffffff' },
+  })
   return {
     mpPaymentId,
-    qrCode: `00020126580014BR.GOV.BCB.PIX0136${mpPaymentId}52040000530398654${(input.amountCents / 100).toFixed(2)}5802BR5913TPC Performance6008Panambi62${mpPaymentId.length.toString().padStart(2, '0')}${mpPaymentId}6304MOCK`,
-    qrCodeBase64: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
+    qrCode,
+    qrCodeBase64,
     expiresAt: expiresIn30Min(),
     amountCents: input.amountCents,
   }
@@ -59,7 +68,7 @@ const mockCardPreference = (input: CreateCardInput): CardPreferenceResult => {
 
 export const createPixPayment = async (input: CreatePixInput): Promise<PixPaymentResult> => {
   if (env.MP_MOCK || !env.MP_ACCESS_TOKEN) {
-    return mockPixPayment(input)
+    return await mockPixPayment(input)
   }
   // TODO: real Mercado Pago SDK call. Wire when TPC fornece access token de
   // produção. Manter o mesmo shape de retorno.

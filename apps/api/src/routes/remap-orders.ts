@@ -69,6 +69,14 @@ export const remapOrdersRoutes: FastifyPluginAsync = async (app) => {
         },
       })
 
+      await app.prisma.message.create({
+        data: {
+          remapOrderId: order.id,
+          senderType: 'SYSTEM',
+          body: `Pedido ${order.protocol} criado. TPC vai analisar e orçar em até 24h.`,
+        },
+      })
+
       return { order: shapeOrder(order) }
     }
 
@@ -162,6 +170,14 @@ export const remapOrdersRoutes: FastifyPluginAsync = async (app) => {
           balanceAfter: balanceAfter?.available ?? 0,
           remapOrderId: order.id,
           reservationId: reservation.id,
+        },
+      })
+
+      await tx.message.create({
+        data: {
+          remapOrderId: order.id,
+          senderType: 'SYSTEM',
+          body: `Pedido ${order.protocol} criado. ${service.pts} pts reservados. Envia teu arquivo pra TPC analisar.`,
         },
       })
 
@@ -441,6 +457,280 @@ export const remapOrdersRoutes: FastifyPluginAsync = async (app) => {
         accepted: result.accepted,
         reserved: result.reserved,
       }
+    },
+  )
+
+  // GET /remap-orders/:id/messages — timeline do chat
+  app.get(
+    '/remap-orders/:id/messages',
+    { preHandler: [app.requireAuth] },
+    async (request) => {
+      const user = request.user
+      if (!user) throw new UnauthorizedError()
+      const { id } = idParamsSchema.parse(request.params)
+
+      const order = await app.prisma.remapOrder.findFirst({
+        where: { id, userId: user.id },
+        select: { id: true },
+      })
+      if (!order) throw new NotFoundError('RemapOrder')
+
+      const messages = await app.prisma.message.findMany({
+        where: { remapOrderId: id },
+        orderBy: { createdAt: 'asc' },
+        include: {
+          file: {
+            select: {
+              id: true,
+              fileName: true,
+              fileSize: true,
+              kind: true,
+            },
+          },
+        },
+      })
+
+      return {
+        messages: messages.map((m) => ({
+          id: m.id,
+          senderType: m.senderType,
+          body: m.body,
+          createdAt: m.createdAt.toISOString(),
+          file: m.file
+            ? {
+                id: m.file.id,
+                fileName: m.file.fileName,
+                fileSize: m.file.fileSize,
+                kind: m.file.kind,
+              }
+            : null,
+        })),
+      }
+    },
+  )
+
+  // POST /remap-orders/:id/messages — cliente posta mensagem no chat
+  app.post(
+    '/remap-orders/:id/messages',
+    { preHandler: [app.requireAuth] },
+    async (request) => {
+      const user = request.user
+      if (!user) throw new UnauthorizedError()
+      const { id } = idParamsSchema.parse(request.params)
+
+      const body = z
+        .object({
+          body: z.string().min(1).max(2000),
+        })
+        .parse(request.body)
+
+      const order = await app.prisma.remapOrder.findFirst({
+        where: { id, userId: user.id },
+        select: { id: true, status: true },
+      })
+      if (!order) throw new NotFoundError('RemapOrder')
+      if (order.status === 'CANCELLED') {
+        throw new ConflictError(
+          'ORDER_CANCELLED',
+          'Pedido cancelado. Não dá pra mandar mensagem.',
+        )
+      }
+
+      const msg = await app.prisma.message.create({
+        data: {
+          remapOrderId: id,
+          senderUserId: user.id,
+          senderType: 'CUSTOMER',
+          body: body.body,
+        },
+      })
+
+      return {
+        message: {
+          id: msg.id,
+          senderType: msg.senderType,
+          body: msg.body,
+          createdAt: msg.createdAt.toISOString(),
+          file: null,
+        },
+      }
+    },
+  )
+
+  // POST /remap-orders/:id/approve — cliente aprova arquivo modificado
+  // Debita reservation (reserved -> debited), libera download permanente.
+  app.post(
+    '/remap-orders/:id/approve',
+    { preHandler: [app.requireAuth] },
+    async (request) => {
+      const user = request.user
+      if (!user) throw new UnauthorizedError()
+      const { id } = idParamsSchema.parse(request.params)
+
+      const result = await app.prisma.$transaction(async (tx) => {
+        const order = await tx.remapOrder.findFirst({
+          where: { id, userId: user.id },
+        })
+        if (!order) throw new NotFoundError('RemapOrder')
+        if (order.status !== 'AWAITING_REVIEW') {
+          throw new ConflictError(
+            'INVALID_APPROVE_STATE',
+            `Pedido está ${order.status.toLowerCase()}, só AWAITING_REVIEW aceita aprovação.`,
+          )
+        }
+        if (order.pointsReserved <= 0) {
+          throw new BusinessError(
+            'NOTHING_TO_DEBIT',
+            'Pedido não tem pontos reservados pra debitar.',
+          )
+        }
+
+        const now = new Date()
+        const amount = order.pointsReserved
+
+        // Move de reserved pra fora (debited). Saldo total do usuário diminui.
+        const balanceAfter = await tx.pointsBalance.update({
+          where: { userId: user.id },
+          data: {
+            reserved: { decrement: amount },
+            version: { increment: 1 },
+          },
+        })
+
+        await tx.reservation.updateMany({
+          where: { remapOrderId: order.id, releasedAt: null },
+          data: { releasedAt: now },
+        })
+
+        await tx.transaction.create({
+          data: {
+            userId: user.id,
+            type: 'DEBIT',
+            amount,
+            balanceAfter: balanceAfter.available,
+            remapOrderId: order.id,
+            metadata: { reason: 'remap_approved' },
+          },
+        })
+
+        const updated = await tx.remapOrder.update({
+          where: { id: order.id },
+          data: {
+            status: 'APPROVED',
+            approvedAt: now,
+            pointsDebited: amount,
+          },
+        })
+
+        await tx.message.create({
+          data: {
+            remapOrderId: order.id,
+            senderType: 'SYSTEM',
+            body: `Pedido aprovado. ${amount} pts debitados. Arquivo modificado liberado pra download permanente.`,
+          },
+        })
+
+        return { order: updated, debited: amount }
+      })
+
+      return {
+        ok: true,
+        order: { id: result.order.id, status: 'APPROVED' },
+        debited: result.debited,
+      }
+    },
+  )
+
+  // POST /remap-orders/:id/dev/simulate-tpc-reply — DEV ONLY
+  // Simula TPC enviando arquivo modificado pra agilizar teste local sem
+  // precisar de painel admin completo. Em prod, esse endpoint não existe
+  // (guard por NODE_ENV). [TPC-DECISION] remover quando painel admin tiver
+  // upload real de arquivos.
+  app.post(
+    '/remap-orders/:id/dev/simulate-tpc-reply',
+    { preHandler: [app.requireAuth] },
+    async (request) => {
+      if (process.env.NODE_ENV === 'production') {
+        throw new BusinessError(
+          'DEV_ONLY',
+          'Endpoint apenas pra desenvolvimento local.',
+        )
+      }
+      const user = request.user
+      if (!user) throw new UnauthorizedError()
+      const { id } = idParamsSchema.parse(request.params)
+
+      const result = await app.prisma.$transaction(async (tx) => {
+        const order = await tx.remapOrder.findFirst({
+          where: { id, userId: user.id },
+          include: { remapService: { select: { pts: true, name: true } } },
+        })
+        if (!order) throw new NotFoundError('RemapOrder')
+
+        // Se for custom AWAITING_QUOTE, envia orçamento ao invés de arquivo
+        if (order.status === 'AWAITING_QUOTE') {
+          const quotePoints = 600 // mock
+          const updated = await tx.remapOrder.update({
+            where: { id },
+            data: {
+              status: 'QUOTE_SENT',
+              quotePoints,
+              quotedAt: new Date(),
+            },
+          })
+          await tx.message.create({
+            data: {
+              remapOrderId: id,
+              senderType: 'TPC_STAFF',
+              body: `Analisamos teu arquivo. Pra esse serviço fica em ${quotePoints} pts. Aceita?`,
+            },
+          })
+          return { order: updated, kind: 'quote' as const, quotePoints }
+        }
+
+        // Se está ANALYZING ou MAPPING, simula entrega do arquivo modificado
+        if (order.status !== 'ANALYZING' && order.status !== 'MAPPING') {
+          throw new ConflictError(
+            'INVALID_SIMULATE_STATE',
+            `Pedido está ${order.status.toLowerCase()}, simulação só roda em ANALYZING/MAPPING/AWAITING_QUOTE.`,
+          )
+        }
+
+        // Cria um RemapFile mock (sem R2 real)
+        const file = await tx.remapFile.create({
+          data: {
+            remapOrderId: id,
+            uploadedById: user.id, // mock: usa o próprio user, em real seria staff
+            kind: 'MODIFIED',
+            r2Key: `mock/users/${user.id}/orders/${id}/modified.bin`,
+            sha256: 'mock-sha256-' + Math.random().toString(36).slice(2, 10),
+            fileName: `${(order.remapService?.name ?? 'remap').toLowerCase().replace(/\s+/g, '-')}_v1.bin`,
+            fileSize: 6_400_000, // 6.4 MB mock
+            mimeType: 'application/octet-stream',
+          },
+        })
+
+        await tx.message.create({
+          data: {
+            remapOrderId: id,
+            senderType: 'TPC_STAFF',
+            body: 'Arquivo modificado entregue. Confere e aprova pra liberar download permanente.',
+            fileId: file.id,
+          },
+        })
+
+        const updated = await tx.remapOrder.update({
+          where: { id },
+          data: {
+            status: 'AWAITING_REVIEW',
+            deliveredAt: new Date(),
+          },
+        })
+
+        return { order: updated, kind: 'file' as const, fileId: file.id }
+      })
+
+      return { ok: true, ...result, order: { id: result.order.id, status: result.order.status } }
     },
   )
 }
