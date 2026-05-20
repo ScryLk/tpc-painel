@@ -175,17 +175,19 @@ model Service {
 
 // Catalogo por arquivo. 9 servicos + 1 custom no MVP.
 model RemapService {
-  id          String   @id @default(uuid())
-  slug        String   @unique
-  name        String
-  description String
-  pts         Int
-  supports    String[]
-  isCustom    Boolean  @default(false)
-  active      Boolean  @default(true)
-  sortOrder   Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id               String   @id @default(uuid())
+  slug             String   @unique
+  name             String
+  description      String
+  category         String?  // 'Performance' | 'Aesthetic' | 'Config' | 'Custom'
+  pts              Int
+  priceAvulsoCents Int      @default(0)
+  supports         String[]
+  isCustom         Boolean  @default(false)
+  active           Boolean  @default(true)
+  sortOrder        Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   remapOrders RemapOrder[]
 
@@ -366,26 +368,31 @@ model Solicitacao {
 // ============================================================================
 
 model RemapOrder {
-  id             String           @id @default(uuid())
-  userId         String
-  carId          String?
-  remapServiceId String?
-  status         RemapOrderStatus @default(AWAITING_QUOTE)
-  isCustomQuote  Boolean          @default(false)
-  ecuModel       String?
-  hardwareUsed   String?
-  readMode       String?
-  vehicleVin     String?
-  mileage        Int?
-  description    String?
-  quotePoints    Int?
-  quoteExpiresAt DateTime?
-  pointsReserved Int              @default(0)
-  pointsDebited  Int              @default(0)
-  approvedAt     DateTime?
-  cancelledAt    DateTime?
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  id               String           @id @default(uuid())
+  protocol         String           @unique
+  userId           String
+  carId            String?
+  remapServiceId   String?
+  status           RemapOrderStatus @default(AWAITING_QUOTE)
+  isCustomQuote    Boolean          @default(false)
+  ecuModel         String?
+  hardwareUsed     String?
+  readMode         String?
+  vehicleVin       String?
+  mileage          Int?
+  description      String?
+  quotePoints      Int?
+  quoteAccepted    Boolean?
+  quoteExpiresAt   DateTime?
+  pointsReserved   Int              @default(0)
+  pointsDebited    Int              @default(0)
+  quotedAt         DateTime?
+  mappingStartedAt DateTime?
+  deliveredAt      DateTime?
+  approvedAt       DateTime?
+  cancelledAt      DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
 
   user         User          @relation(fields: [userId], references: [id])
   car          Car?          @relation(fields: [carId], references: [id])
@@ -402,6 +409,7 @@ model RemapOrder {
 model RemapFile {
   id           String        @id @default(uuid())
   remapOrderId String
+  uploadedById String        // userId (cliente ou TPC staff)
   kind         RemapFileKind
   r2Key        String
   sha256       String
