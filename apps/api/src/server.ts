@@ -3,11 +3,16 @@ import { fileURLToPath } from 'node:url'
 import cors from '@fastify/cors'
 import Fastify, { type FastifyInstance } from 'fastify'
 
-import { startNotificationsWorker } from './jobs/index.js'
+import {
+  EXPIRE_RESERVATION_JOB,
+  scheduleRepeatable,
+  startNotificationsWorker,
+} from './jobs/index.js'
 import { env } from './lib/env.js'
 import authPlugin from './plugins/auth.js'
 import errorPlugin from './plugins/error.js'
 import prismaPlugin from './plugins/prisma.js'
+import { adminSolicitacoesRoutes } from './routes/admin/solicitacoes.js'
 import { carRoutes } from './routes/cars.js'
 import { checkoutRoutes } from './routes/checkout.js'
 import { healthRoutes } from './routes/health.js'
@@ -45,6 +50,7 @@ export const buildServer = async (): Promise<FastifyInstance> => {
   await app.register(purchaseRoutes)
   await app.register(servicosRoutes)
   await app.register(solicitacoesRoutes)
+  await app.register(adminSolicitacoesRoutes)
   await app.register(webhookRoutes)
 
   return app
@@ -59,6 +65,10 @@ const start = async () => {
   app.addHook('onClose', async () => {
     await worker.close()
   })
+
+  // Job recorrente: expira Reservations PENDENTE > 24h. Idempotente, remove
+  // schedule anterior antes de adicionar.
+  await scheduleRepeatable(EXPIRE_RESERVATION_JOB, 60 * 60 * 1000)
 
   try {
     await app.listen({ host: env.API_HOST, port: env.API_PORT })
