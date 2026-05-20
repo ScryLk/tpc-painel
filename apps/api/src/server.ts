@@ -14,6 +14,8 @@ import { healthRoutes } from './routes/health.js'
 import { meRoutes } from './routes/me.js'
 import { pacotesRoutes } from './routes/pacotes.js'
 import { purchaseRoutes } from './routes/purchases.js'
+import { servicosRoutes } from './routes/servicos.js'
+import { solicitacoesRoutes } from './routes/solicitacoes.js'
 import { webhookRoutes } from './routes/webhooks.js'
 
 export const buildServer = async (): Promise<FastifyInstance> => {
@@ -41,6 +43,8 @@ export const buildServer = async (): Promise<FastifyInstance> => {
   await app.register(pacotesRoutes)
   await app.register(checkoutRoutes)
   await app.register(purchaseRoutes)
+  await app.register(servicosRoutes)
+  await app.register(solicitacoesRoutes)
   await app.register(webhookRoutes)
 
   return app
