@@ -38,4 +38,4 @@ export interface BalanceLike {
 export const fitsBalance = (cost: number, balance: BalanceLike): boolean =>
   balance.available >= cost
 
-export * from './agendar.js'
+export * from './agendar'
