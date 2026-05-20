@@ -336,7 +336,7 @@ pnpm typecheck
 - [x] Tela: Detalhe do Serviço (adaptativo: performance/aesthetic/config)
 - [x] Tela: Agendar (calendar, multi-dia, política cancelamento)
 - [x] Tela: Garagem (3 carros, ativo, status sobrepõe)
-- [x] Reserva de saldo (job expirar reserva 24h fica pra PR seguinte)
+- [x] Reserva de saldo + job expirar reserva em 24h + admin endpoints (confirm/start/complete)
 
 ### Sprint 3 — File service
 - [ ] Tela: Catálogo "Por arquivo" (tab no Catálogo)
