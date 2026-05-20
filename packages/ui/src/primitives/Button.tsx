@@ -1,6 +1,6 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 
-import { cn } from '../lib/cn.js'
+import { cn } from '../lib/cn'
 
 type Variant = 'primary' | 'secondary' | 'ghost'
 
@@ -13,7 +13,7 @@ interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'chi
 }
 
 const base =
-  'inline-flex items-center justify-center gap-2 rounded-full font-semibold tracking-tight transition disabled:cursor-not-allowed disabled:opacity-50'
+  'inline-flex cursor-pointer items-center justify-center gap-2 rounded-full font-semibold tracking-tight transition disabled:cursor-not-allowed disabled:opacity-50'
 
 const sizeMap = 'px-6 py-3 text-sm'
 
