@@ -5,7 +5,7 @@
   "description": "TPC Performance prepaid wallet for remap services",
   "packageManager": "pnpm@9.15.0",
   "engines": {
-    "node": ">=20.11"
+    "node": "22.x"
   },
   "scripts": {
     "dev": "turbo run dev",

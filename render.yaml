@@ -12,11 +12,11 @@ services:
     plan: free
     region: ohio # US East — perto do Neon e do Upstash escolhidos
     rootDir: . # monorepo, build acessa apps/api e packages/*
-    # Habilita corepack pra pegar a versão de pnpm declarada em
-    # package.json#packageManager. Build instala deps em modo workspace,
-    # gera o Prisma Client, e compila o API com tsup.
+    # Instala pnpm via npm (corepack falha em /usr/bin read-only no Render).
+    # `npm install -g` resolve em $PATH writable. Versão pinada pra bater com
+    # package.json#packageManager.
     buildCommand: |
-      corepack enable &&
+      npm install -g pnpm@9.15.0 &&
       pnpm install --frozen-lockfile &&
       pnpm --filter @tpc/db exec prisma generate &&
       pnpm --filter @tpc/api build
