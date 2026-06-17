@@ -15,9 +15,12 @@ services:
     # Instala pnpm via npm (corepack falha em /usr/bin read-only no Render).
     # `npm install -g` resolve em $PATH writable. Versão pinada pra bater com
     # package.json#packageManager.
+    # --prod=false força pnpm a instalar devDependencies. Sem isso o Render
+    # seta NODE_ENV=production e o pnpm pula devDeps (prisma CLI, tsup, etc),
+    # quebrando `prisma generate` e `pnpm --filter @tpc/api build`.
     buildCommand: |
       npm install -g pnpm@9.15.0 &&
-      pnpm install --frozen-lockfile &&
+      pnpm install --frozen-lockfile --prod=false &&
       pnpm --filter @tpc/db exec prisma generate &&
       pnpm --filter @tpc/api build
     # Bundle único em apps/api/dist/server.js. PORT é injetado pelo Render
