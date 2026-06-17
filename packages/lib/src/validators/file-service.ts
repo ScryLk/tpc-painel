@@ -38,13 +38,15 @@ export type RemapTechnicalData = z.infer<typeof remapTechnicalDataSchema>
 
 // POST /remap-orders body.
 //
+// carId é sempre obrigatório: file service amarra o pedido a um carro do user
+// (compatibilidade, garantia, status visual na garagem, anti-pirataria futura).
 // Fluxo padrão: serviceId obrigatório, isCustomQuote=false, reserva pts ao criar.
 // Fluxo custom: serviceId opcional (cliente pode passar `null` ou omitir),
 // isCustomQuote=true, status inicial AWAITING_QUOTE sem reservar pts.
 export const createRemapOrderSchema = z
   .object({
     serviceId: z.string().uuid().nullable().optional(),
-    carId: z.string().uuid().optional(),
+    carId: z.string().uuid({ message: 'Cadastre um carro antes de abrir pedido' }),
     isCustomQuote: z.boolean().default(false),
     technicalData: remapTechnicalDataSchema.default({}),
   })

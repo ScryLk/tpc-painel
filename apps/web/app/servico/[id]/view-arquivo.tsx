@@ -28,9 +28,18 @@ interface Saldo {
   total: number
 }
 
+interface CarLite {
+  id: string
+  brand: string
+  model: string
+  motorType: string
+  isActive: boolean
+}
+
 interface Props {
   service: RemapService
   saldo: Saldo
+  activeCar: CarLite | null
 }
 
 const PROCEDIMENTO = [
@@ -41,21 +50,24 @@ const PROCEDIMENTO = [
   ['05', 'Entrega + aprovação', 'Arquivo modificado chega no chat. Cliente aprova, grava na ECU.'],
 ] as const
 
-export const ServicoArquivoView = ({ service, saldo }: Props) => {
+export const ServicoArquivoView = ({ service, saldo, activeCar }: Props) => {
   const router = useRouter()
   const api = useApi()
   const [submitting, startSubmit] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
   const hasBalance = !service.isCustom && saldo.available >= service.pts
-  const canRequest = service.isCustom || hasBalance
+  const hasCar = activeCar !== null
+  const canRequest = hasCar && (service.isCustom || hasBalance)
 
   const submitOrder = () => {
+    if (!activeCar) return
     setError(null)
     startSubmit(async () => {
       try {
         const res = await api.post<{ order: { id: string } }>('/remap-orders', {
           serviceId: service.isCustom ? null : service.id,
+          carId: activeCar.id,
           isCustomQuote: service.isCustom,
           technicalData: {
             // Bootstrap mínimo: tela de upload+dados técnicos vem no próximo PR.
@@ -253,7 +265,22 @@ export const ServicoArquivoView = ({ service, saldo }: Props) => {
                 </>
               )}
 
-              {!service.isCustom && !hasBalance && (
+              {!hasCar && (
+                <div className="mt-4 rounded-lg border border-tpc-red/30 bg-tpc-red/10 p-3">
+                  <div className="text-sm font-semibold text-tpc-red">
+                    Cadastre um carro primeiro
+                  </div>
+                  <p className="mt-1 text-xs text-tpc-text-secondary">
+                    Pedidos por arquivo precisam estar amarrados a um carro pra
+                    calcular garantia e compatibilidade.{' '}
+                    <Link href="/garagem" className="text-tpc-text underline">
+                      Ir pra garagem
+                    </Link>
+                  </p>
+                </div>
+              )}
+
+              {hasCar && !service.isCustom && !hasBalance && (
                 <div className="mt-4 rounded-lg border border-tpc-yellow/30 bg-tpc-yellow/10 p-3">
                   <div className="text-sm font-semibold text-tpc-yellow">
                     Saldo insuficiente
@@ -275,11 +302,13 @@ export const ServicoArquivoView = ({ service, saldo }: Props) => {
                 >
                   {submitting
                     ? 'Criando pedido…'
-                    : !canRequest
-                      ? 'Saldo insuficiente'
-                      : service.isCustom
-                        ? 'Enviar pra análise'
-                        : `Solicitar · reservar ${formatPoints(service.pts)} pts`}
+                    : !hasCar
+                      ? 'Cadastre um carro primeiro'
+                      : !canRequest
+                        ? 'Saldo insuficiente'
+                        : service.isCustom
+                          ? 'Enviar pra análise'
+                          : `Solicitar · reservar ${formatPoints(service.pts)} pts`}
                 </Button>
                 {error && (
                   <div className="mt-2 rounded-lg border border-tpc-red/40 bg-tpc-red/10 px-3 py-2 text-xs text-tpc-red">

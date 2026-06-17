@@ -63,8 +63,8 @@ export const webhookRoutes: FastifyPluginAsync = async (app) => {
     const purchase = await app.prisma.purchase.findUnique({
       where: { mpTransactionId: dataId },
       include: {
-        user: { select: { email: true, phone: true } },
-        package: { select: { name: true } },
+        user: { select: { email: true, name: true, phone: true } },
+        package: { select: { name: true, bonusPoints: true } },
       },
     })
     if (!purchase) {
@@ -160,9 +160,13 @@ export const webhookRoutes: FastifyPluginAsync = async (app) => {
         userId: purchase.userId,
         purchaseId: purchase.id,
         email: purchase.user.email,
+        customerName: purchase.user.name,
         amountCents: purchase.amountCents,
         pointsCredited: purchase.pointsCredited,
+        bonusPoints: purchase.package.bonusPoints,
+        newBalance: result.newAvailable,
         packageName: purchase.package.name,
+        method: purchase.mpPaymentMethod,
         cpfCnpj: purchase.cpfCnpj,
       }
 

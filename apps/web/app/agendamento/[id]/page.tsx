@@ -25,6 +25,12 @@ interface Solicitacao {
   car: { brand: string; model: string; year: number; plate: string; motorType: string }
 }
 
+interface Saldo {
+  available: number
+  reserved: number
+  total: number
+}
+
 export const metadata = { title: 'Agendamento · TPC Painel' }
 
 interface PageProps {
@@ -41,5 +47,11 @@ export default async function AgendamentoPage({ params }: PageProps) {
     notFound()
   }
 
-  return <AgendamentoView solicitacao={s} />
+  const saldo = await apiGet<Saldo>('/me/saldo').catch(() => ({
+    available: 0,
+    reserved: 0,
+    total: 0,
+  }))
+
+  return <AgendamentoView solicitacao={s} saldoAvailable={saldo.available} />
 }

@@ -1,15 +1,35 @@
 'use client'
 
-import { useState } from 'react'
+import { useClerk, useUser } from '@clerk/nextjs'
+import Link from 'next/link'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { Card, DiagonalStripes, SecHeading, cn } from '@tpc/ui'
 
 import { ClientShell } from '@/components/layout/ClientShell'
+import { useApi } from '@/lib/api/client'
+
+import { AddCardModal } from './_components/AddCardModal'
+import { AvatarUploader } from './_components/AvatarUploader'
+import { ConsentsModal } from './_components/ConsentsModal'
+import { DataExportModal } from './_components/DataExportModal'
+import { DeleteAccountModal } from './_components/DeleteAccountModal'
+import { PerfilDadosForm } from './_components/PerfilDadosForm'
 
 interface Saldo {
   available: number
   reserved: number
   total: number
+}
+
+export interface ProfileAddress {
+  cep: string
+  street: string
+  number: string
+  complement: string | null
+  neighborhood: string
+  city: string
+  state: string
 }
 
 interface UserData {
@@ -18,6 +38,9 @@ interface UserData {
   initials: string
   email: string
   phone: string
+  cpfCnpj: string
+  avatarUrl: string | null
+  address: ProfileAddress | null
   id: string
 }
 
@@ -93,9 +116,7 @@ const UserHero = ({ user }: { user: UserData }) => {
         <DiagonalStripes width={200} height={120} thickness={1.5} spacing={11} mask="top-right" />
       </div>
       <div className="relative flex items-center gap-4 md:gap-5">
-        <div className="flex h-[72px] w-[72px] flex-shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-tpc-red to-tpc-red-dark text-[28px] font-bold tracking-[-0.04em] text-tpc-text shadow-[0_0_28px_rgba(225,38,28,0.2)]">
-          {user.initials}
-        </div>
+        <AvatarUploader user={user} />
         <div className="min-w-0">
           <div className="truncate text-[22px] font-bold tracking-[-0.03em] text-tpc-text">
             {user.fullName}
@@ -235,77 +256,8 @@ const NavIcon = ({ kind }: { kind: IconKind }) => {
   )
 }
 
-interface PerfilDataRow {
-  label: string
-  value: string
-  sub?: string
-  placeholder?: boolean
-}
-
 const PerfilDadosSection = ({ user }: { user: UserData }) => {
-  const rows: PerfilDataRow[] = [
-    { label: 'Nome', value: user.fullName },
-    { label: 'E-mail', value: user.email },
-    { label: 'Telefone', value: user.phone, sub: 'usado pelo WhatsApp da TPC' },
-    {
-      label: 'CPF/CNPJ',
-      value: 'Não cadastrado',
-      sub: 'opcional · pra emissão de NF',
-      placeholder: true,
-    },
-    {
-      label: 'Endereço',
-      value: 'Não cadastrado',
-      sub: 'opcional · pra NF e correspondência',
-      placeholder: true,
-    },
-  ]
-
-  return (
-    <section>
-      <SecHeading
-        className="px-0 pb-3 pt-0"
-        action={
-          <button
-            type="button"
-            className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-tpc-red"
-          >
-            Editar
-          </button>
-        }
-      >
-        Dados pessoais
-      </SecHeading>
-      <Card className="overflow-hidden p-0">
-        {rows.map((r, i) => (
-          <div
-            key={r.label}
-            className={cn(
-              'grid grid-cols-[140px_1fr] items-center gap-3 px-5 py-4 md:grid-cols-[180px_1fr] md:gap-4',
-              i < rows.length - 1 && 'border-b border-tpc-border',
-            )}
-          >
-            <div>
-              <div className="text-[13px] font-medium text-tpc-text">{r.label}</div>
-              {r.sub && (
-                <div className="mt-0.5 text-[11px] text-tpc-text-tertiary">{r.sub}</div>
-              )}
-            </div>
-            <div
-              className={cn(
-                'text-[13px]',
-                r.placeholder
-                  ? 'italic text-tpc-text-tertiary'
-                  : 'text-tpc-text',
-              )}
-            >
-              {r.value}
-            </div>
-          </div>
-        ))}
-      </Card>
-    </section>
-  )
+  return <PerfilDadosForm user={user} />
 }
 
 const PerfilNotifSection = () => {
@@ -408,7 +360,92 @@ const Toggle = ({ on, onToggle }: { on: boolean; onToggle: () => void }) => {
   )
 }
 
+interface SavedCard {
+  id: string
+  brand: string
+  lastFour: string
+  holderName: string
+  expMonth: number
+  expYear: number
+  exp: string
+  isDefault: boolean
+  createdAt: string
+}
+
+const brandLabel = (brand: string): string => {
+  const b = brand.toLowerCase()
+  if (b === 'visa') return 'Visa'
+  if (b === 'master' || b === 'mastercard') return 'Mastercard'
+  if (b === 'amex') return 'American Express'
+  if (b === 'elo') return 'Elo'
+  if (b === 'hipercard') return 'Hipercard'
+  if (b === 'diners') return 'Diners'
+  return brand.charAt(0).toUpperCase() + brand.slice(1)
+}
+
 const PerfilPagamentosSection = () => {
+  const api = useApi()
+  const [cards, setCards] = useState<SavedCard[] | null>(null)
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const [addOpen, setAddOpen] = useState(false)
+
+  const load = useCallback(async () => {
+    try {
+      const res = await api.get<{ items: SavedCard[] }>('/me/saved-cards')
+      setCards(res.items)
+    } catch {
+      setCards([])
+    }
+  }, [api])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  const onRemove = useCallback(
+    async (id: string) => {
+      const card = cards?.find((c) => c.id === id)
+      if (!card) return
+      const confirmed = window.confirm(
+        `Remover ${brandLabel(card.brand)} final ${card.lastFour}? Você ainda pode salvar de novo numa próxima compra.`,
+      )
+      if (!confirmed) return
+      setBusyId(id)
+      setCards((prev) => (prev ? prev.filter((c) => c.id !== id) : prev))
+      try {
+        await api.del(`/me/saved-cards/${id}`)
+      } catch {
+        // Rollback otimista em caso de falha
+        void load()
+      } finally {
+        setBusyId(null)
+      }
+    },
+    [api, cards, load],
+  )
+
+  const onSetDefault = useCallback(
+    async (id: string) => {
+      setBusyId(id)
+      setCards((prev) =>
+        prev
+          ? prev.map((c) => ({ ...c, isDefault: c.id === id }))
+          : prev,
+      )
+      try {
+        await api.post(`/me/saved-cards/${id}/default`, {})
+        void load()
+      } catch {
+        void load()
+      } finally {
+        setBusyId(null)
+      }
+    },
+    [api, load],
+  )
+
+  const hasCards = cards !== null && cards.length > 0
+
   return (
     <section>
       <SecHeading
@@ -416,7 +453,8 @@ const PerfilPagamentosSection = () => {
         action={
           <button
             type="button"
-            className="inline-flex items-center gap-1.5 rounded-lg bg-tpc-red px-3 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-tpc-text"
+            onClick={() => setAddOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-tpc-red px-3 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-tpc-text transition hover:bg-tpc-red-dark"
           >
             <svg
               width="11"
@@ -437,99 +475,298 @@ const PerfilPagamentosSection = () => {
       >
         Pagamentos salvos
       </SecHeading>
-      <Card className="mb-6 overflow-hidden p-0">
-        <PaymentRow brand="visa" last4="4242" exp="08/29" badge="Padrão" />
-        <PaymentRow brand="master" last4="8821" exp="12/27" last />
-      </Card>
+
+      {cards === null ? (
+        <Card className="mb-6 p-6 text-center text-sm text-tpc-text-tertiary">
+          Carregando cartões…
+        </Card>
+      ) : !hasCards ? (
+        <Card className="mb-6 p-6 text-center">
+          <p className="text-sm font-semibold text-tpc-text">
+            Nenhum cartão salvo
+          </p>
+          <p className="mt-1 text-xs text-tpc-text-tertiary">
+            Adicione um cartão pra acelerar compras futuras.
+          </p>
+          <button
+            type="button"
+            onClick={() => setAddOpen(true)}
+            className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-tpc-red px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-tpc-text transition hover:bg-tpc-red-dark"
+          >
+            Adicionar cartão
+          </button>
+        </Card>
+      ) : (
+        <Card className="mb-6 overflow-hidden p-0">
+          {cards.map((card, i) => (
+            <PaymentRow
+              key={card.id}
+              card={card}
+              last={i === cards.length - 1}
+              busy={busyId === card.id}
+              onRemove={() => onRemove(card.id)}
+              onSetDefault={() => onSetDefault(card.id)}
+            />
+          ))}
+        </Card>
+      )}
 
       <SecHeading className="px-0 pb-3 pt-0">Histórico de transações</SecHeading>
       <Card className="p-4 text-center text-sm text-tpc-text-secondary">
         Pra ver todas as transações de compra de pontos, vai no{' '}
-        <span className="font-semibold text-tpc-red">Histórico → Compras</span>.
+        <Link
+          href="/historico"
+          className="font-semibold text-tpc-red hover:underline"
+        >
+          Histórico → Compras
+        </Link>
+        .
       </Card>
+
+      <AddCardModal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        onCreated={() => void load()}
+      />
     </section>
   )
 }
 
 const PaymentRow = ({
-  brand,
-  last4,
-  exp,
-  badge,
+  card,
   last,
+  busy,
+  onRemove,
+  onSetDefault,
 }: {
-  brand: 'visa' | 'master'
-  last4: string
-  exp: string
-  badge?: string
+  card: SavedCard
   last?: boolean
+  busy: boolean
+  onRemove: () => void
+  onSetDefault: () => void
 }) => {
+  const brand = card.brand.toLowerCase()
   return (
     <div
       className={cn(
         'flex items-center gap-4 px-5 py-4',
         !last && 'border-b border-tpc-border',
+        busy && 'opacity-50',
       )}
     >
       {brand === 'visa' ? (
         <div className="flex h-8 w-12 flex-shrink-0 items-center justify-center rounded-md bg-[#1a1f3a] italic font-bold tracking-[-0.02em] text-white">
           VISA
         </div>
-      ) : (
+      ) : brand === 'master' || brand === 'mastercard' ? (
         <div className="relative flex h-8 w-12 flex-shrink-0 items-center justify-center rounded-md bg-tpc-elevated-2">
           <span className="absolute left-[11px] h-[14px] w-[14px] rounded-full bg-[#eb001b]" />
           <span className="absolute right-[11px] h-[14px] w-[14px] rounded-full bg-[#f79e1b] mix-blend-multiply" />
         </div>
+      ) : (
+        <div className="flex h-8 w-12 flex-shrink-0 items-center justify-center rounded-md border border-tpc-border bg-tpc-surface font-mono text-[9px] font-bold uppercase tracking-wider text-tpc-text-secondary">
+          {brand.slice(0, 4)}
+        </div>
       )}
-      <div className="flex-1">
-        <div className="flex items-center gap-2.5">
+      <div className="flex-1 min-w-0">
+        <div className="flex flex-wrap items-center gap-2.5">
           <span className="text-sm font-semibold text-tpc-text">
-            {brand === 'visa' ? 'Visa' : 'Mastercard'} final {last4}
+            {brandLabel(card.brand)} final {card.lastFour}
           </span>
-          {badge && (
+          {card.isDefault && (
             <span className="rounded border border-tpc-green/40 bg-tpc-green/10 px-1.5 py-0.5 font-mono text-[8px] font-bold uppercase tracking-[0.16em] text-tpc-green">
-              {badge}
+              Padrão
             </span>
           )}
         </div>
         <div className="mt-1 font-mono text-[11px] tracking-wide text-tpc-text-tertiary">
-          venc {exp}
+          venc {card.exp}
         </div>
       </div>
-      <button
-        type="button"
-        className="rounded border border-tpc-border bg-tpc-surface px-3 py-1.5 font-mono text-[9px] font-semibold uppercase tracking-[0.1em] text-tpc-text-secondary"
-      >
-        Remover
-      </button>
+      <div className="flex items-center gap-2">
+        {!card.isDefault && (
+          <button
+            type="button"
+            onClick={onSetDefault}
+            disabled={busy}
+            className="rounded border border-tpc-border bg-tpc-surface px-3 py-1.5 font-mono text-[9px] font-semibold uppercase tracking-[0.1em] text-tpc-text-secondary transition hover:border-tpc-green/40 hover:text-tpc-green disabled:cursor-not-allowed"
+          >
+            Tornar padrão
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onRemove}
+          disabled={busy}
+          className="rounded border border-tpc-border bg-tpc-surface px-3 py-1.5 font-mono text-[9px] font-semibold uppercase tracking-[0.1em] text-tpc-text-secondary transition hover:border-tpc-red/40 hover:text-tpc-red disabled:cursor-not-allowed"
+        >
+          Remover
+        </button>
+      </div>
     </div>
   )
 }
 
+interface SessionInfo {
+  id: string
+  isCurrent: boolean
+  browser: string
+  os: string
+  city: string | null
+  lastActiveAt: Date | null
+}
+
+// Toda a tela de segurança delega pro Clerk UserProfile (modal hosted) que
+// já tem fluxo seguro de senha, 2FA e revoke de sessões. Aqui só mostramos
+// status real e abrimos o modal nos contextos certos.
 const PerfilSegurancaSection = () => {
+  const { user, isLoaded } = useUser()
+  const clerk = useClerk()
+  const [sessions, setSessions] = useState<SessionInfo[] | null>(null)
+  const [signingOut, setSigningOut] = useState(false)
+
+  const handleSignOut = async () => {
+    if (signingOut) return
+    setSigningOut(true)
+    await clerk.signOut({ redirectUrl: '/sign-in' })
+  }
+
+  const twoFactorOn = useMemo<boolean>(() => {
+    if (!user) return false
+    return Boolean(user.totpEnabled) || Boolean(user.backupCodeEnabled)
+  }, [user])
+
+  // user.getSessions() retorna SessionWithActivities[] do Clerk. Mapeia pra
+  // shape compacto pro UI. Pode falhar (rede) — degrada pra null sem
+  // quebrar a section toda.
+  useEffect(() => {
+    if (!user) return
+    let alive = true
+    user
+      .getSessions()
+      .then((list) => {
+        if (!alive) return
+        const currentId = clerk.session?.id ?? null
+        setSessions(
+          list.map((s) => ({
+            id: s.id,
+            isCurrent: s.id === currentId,
+            browser: s.latestActivity?.browserName ?? 'Browser',
+            os: s.latestActivity?.deviceType ?? 'Dispositivo',
+            city: s.latestActivity?.city ?? null,
+            lastActiveAt: s.lastActiveAt ?? null,
+          })),
+        )
+      })
+      .catch(() => setSessions([]))
+    return () => {
+      alive = false
+    }
+  }, [user, clerk.session])
+
+  const openProfile = () => clerk.openUserProfile()
+
+  const sessionsLabel = (() => {
+    if (sessions === null) return 'carregando…'
+    if (sessions.length === 0) return 'sem sessões ativas'
+    const others = sessions.filter((s) => !s.isCurrent)
+    if (sessions.length === 1) return '1 dispositivo · esse aqui'
+    return `${sessions.length} dispositivos${others.length > 0 ? ` · ${others.length} outras sessões ativas` : ''}`
+  })()
+
   return (
     <section>
       <SecHeading className="px-0 pb-3 pt-0">Segurança da conta</SecHeading>
       <Card className="overflow-hidden p-0">
         <SecurityRow
           title="Trocar senha"
-          sub="redireciona pro sistema de contas"
-          action={<SecondaryActionButton label="Abrir" />}
+          sub={
+            user?.passwordEnabled
+              ? 'troca direto pelo Clerk, sem sair do app'
+              : 'login social ativo — senha gerenciada pelo provedor'
+          }
+          action={
+            <ActionButton onClick={openProfile} disabled={!isLoaded}>
+              Abrir
+            </ActionButton>
+          }
         />
         <SecurityRow
           title="Autenticação em 2 fatores"
-          sub="recomendado pra contas com saldo alto"
-          action={<TogglePlaceholder />}
+          sub={
+            !isLoaded
+              ? 'carregando…'
+              : twoFactorOn
+                ? 'ativado · proteção extra contra acesso não autorizado'
+                : 'recomendado pra contas com saldo alto'
+          }
+          action={
+            <TwoFactorToggle
+              on={twoFactorOn}
+              disabled={!isLoaded}
+              onToggle={openProfile}
+            />
+          }
         />
         <SecurityRow
           title="Sessões ativas"
-          sub="2 dispositivos · Chrome Mac · iOS"
-          action={<SecondaryActionButton label="Gerenciar" />}
+          sub={sessionsLabel}
+          action={
+            <ActionButton onClick={openProfile} disabled={!isLoaded}>
+              Gerenciar
+            </ActionButton>
+          }
+        />
+        {sessions && sessions.length > 0 && (
+          <div className="border-b border-tpc-border bg-tpc-surface/40 px-5 py-3">
+            <ul className="flex flex-col gap-2">
+              {sessions.map((s) => (
+                <li key={s.id} className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="truncate text-[12px] font-medium text-tpc-text">
+                      {s.browser} · {s.os}
+                      {s.isCurrent && (
+                        <span className="ml-2 rounded border border-tpc-green/40 bg-tpc-green/10 px-1.5 py-0.5 font-mono text-[8px] font-bold uppercase tracking-[0.16em] text-tpc-green">
+                          Esta sessão
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-0.5 font-mono text-[10px] tracking-wide text-tpc-text-tertiary">
+                      {[s.city, formatLastActive(s.lastActiveAt)]
+                        .filter(Boolean)
+                        .join(' · ') || 'sessão ativa'}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <SecurityRow
+          title="Sair da conta"
+          sub="encerra essa sessão neste dispositivo"
           last
+          action={
+            <ActionButton onClick={handleSignOut} disabled={signingOut}>
+              {signingOut ? 'Saindo…' : 'Sair'}
+            </ActionButton>
+          }
         />
       </Card>
     </section>
   )
+}
+
+const formatLastActive = (date: Date | null): string => {
+  if (!date) return ''
+  const diff = Date.now() - date.getTime()
+  const min = Math.floor(diff / 60_000)
+  if (min < 1) return 'ativa agora'
+  if (min < 60) return `${min}min atrás`
+  const hr = Math.floor(min / 60)
+  if (hr < 24) return `${hr}h atrás`
+  const days = Math.floor(hr / 24)
+  return `${days}d atrás`
 }
 
 const SecurityRow = ({
@@ -559,21 +796,46 @@ const SecurityRow = ({
   )
 }
 
-const SecondaryActionButton = ({ label }: { label: string }) => (
+const ActionButton = ({
+  onClick,
+  disabled,
+  children,
+}: {
+  onClick: () => void
+  disabled?: boolean
+  children: React.ReactNode
+}) => (
   <button
     type="button"
-    className="rounded border border-tpc-border bg-tpc-surface px-3 py-1.5 font-mono text-[9px] font-semibold uppercase tracking-[0.1em] text-tpc-text"
+    onClick={onClick}
+    disabled={disabled}
+    className={cn(
+      'rounded border border-tpc-border bg-tpc-surface px-3 py-1.5 font-mono text-[9px] font-semibold uppercase tracking-[0.1em] text-tpc-text transition',
+      disabled
+        ? 'cursor-not-allowed opacity-50'
+        : 'cursor-pointer hover:border-tpc-border-strong hover:bg-tpc-elevated',
+    )}
   >
-    {label}
+    {children}
   </button>
 )
 
-const TogglePlaceholder = () => {
-  const [on, setOn] = useState(false)
-  return <Toggle on={on} onToggle={() => setOn((v) => !v)} />
-}
+const TwoFactorToggle = ({
+  on,
+  disabled,
+  onToggle,
+}: {
+  on: boolean
+  disabled?: boolean
+  onToggle: () => void
+}) => (
+  <Toggle on={on} onToggle={disabled ? () => undefined : onToggle} />
+)
+
+type PrivacyModal = 'export' | 'consents' | 'delete' | null
 
 const PerfilPrivacidadeSection = () => {
+  const [openModal, setOpenModal] = useState<PrivacyModal>(null)
   return (
     <section>
       <SecHeading
@@ -591,11 +853,13 @@ const PerfilPrivacidadeSection = () => {
           title="Solicitar minhas informações"
           sub="Baixa um relatório com tudo que TPC guarda sobre ti (JSON + ZIP)"
           cta="Solicitar"
+          onClick={() => setOpenModal('export')}
         />
         <PrivacyRow
           title="Gerenciar consentimentos"
           sub="Controle granular do que TPC pode fazer com teus dados"
           cta="Abrir"
+          onClick={() => setOpenModal('consents')}
         />
         <PrivacyRow
           title="Excluir minha conta"
@@ -603,6 +867,7 @@ const PerfilPrivacidadeSection = () => {
           cta="Excluir"
           danger
           last
+          onClick={() => setOpenModal('delete')}
         />
       </Card>
 
@@ -612,6 +877,19 @@ const PerfilPrivacidadeSection = () => {
         8.846/94), mas teus dados pessoais identificáveis são apagados quando tu
         pedir.
       </div>
+
+      <DataExportModal
+        open={openModal === 'export'}
+        onClose={() => setOpenModal(null)}
+      />
+      <ConsentsModal
+        open={openModal === 'consents'}
+        onClose={() => setOpenModal(null)}
+      />
+      <DeleteAccountModal
+        open={openModal === 'delete'}
+        onClose={() => setOpenModal(null)}
+      />
     </section>
   )
 }
@@ -622,12 +900,14 @@ const PrivacyRow = ({
   cta,
   danger,
   last,
+  onClick,
 }: {
   title: string
   sub: string
   cta: string
   danger?: boolean
   last?: boolean
+  onClick: () => void
 }) => {
   return (
     <div
@@ -651,11 +931,12 @@ const PrivacyRow = ({
       </div>
       <button
         type="button"
+        onClick={onClick}
         className={cn(
-          'rounded border px-3 py-1.5 font-mono text-[9px] font-semibold uppercase tracking-[0.1em]',
+          'cursor-pointer rounded border px-3 py-1.5 font-mono text-[9px] font-semibold uppercase tracking-[0.1em] transition',
           danger
-            ? 'border-tpc-red/50 bg-transparent text-tpc-red'
-            : 'border-tpc-border bg-tpc-surface text-tpc-text',
+            ? 'border-tpc-red/50 bg-transparent text-tpc-red hover:bg-tpc-red/10'
+            : 'border-tpc-border bg-tpc-surface text-tpc-text hover:bg-tpc-elevated',
         )}
       >
         {cta}
@@ -710,12 +991,46 @@ const PerfilAjudaSection = () => {
 
       <SecHeading className="px-0 pb-3 pt-0">Legal</SecHeading>
       <Card className="overflow-hidden p-0">
-        <div className="cursor-pointer border-b border-tpc-border px-5 py-3.5 text-[13px] text-tpc-text hover:bg-tpc-elevated">
-          Termos de uso
-        </div>
-        <div className="cursor-pointer border-b border-tpc-border px-5 py-3.5 text-[13px] text-tpc-text hover:bg-tpc-elevated">
-          Política de privacidade
-        </div>
+        <Link
+          href="/legal/termos"
+          className="flex items-center justify-between border-b border-tpc-border px-5 py-3.5 text-[13px] text-tpc-text transition hover:bg-tpc-elevated"
+        >
+          <span>Termos de uso</span>
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="text-tpc-text-tertiary"
+            aria-hidden
+          >
+            <path d="M9 6l6 6-6 6" />
+          </svg>
+        </Link>
+        <Link
+          href="/legal/privacidade"
+          className="flex items-center justify-between border-b border-tpc-border px-5 py-3.5 text-[13px] text-tpc-text transition hover:bg-tpc-elevated"
+        >
+          <span>Política de privacidade</span>
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="text-tpc-text-tertiary"
+            aria-hidden
+          >
+            <path d="M9 6l6 6-6 6" />
+          </svg>
+        </Link>
         <div className="flex items-center justify-between px-5 py-3.5">
           <span className="text-[13px] text-tpc-text">Versão do app</span>
           <span className="font-mono text-[11px] tracking-wide text-tpc-text-tertiary">

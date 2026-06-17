@@ -64,12 +64,22 @@ export default async function ServicoDetalhePage({ params, searchParams }: PageP
     } catch {
       notFound()
     }
-    const saldo = await apiGet<Saldo>('/me/saldo').catch(() => ({
-      available: 0,
-      reserved: 0,
-      total: 0,
-    }))
-    return <ServicoArquivoView service={remapRes.service} saldo={saldo} />
+    const [saldo, carsRes] = await Promise.all([
+      apiGet<Saldo>('/me/saldo').catch(() => ({
+        available: 0,
+        reserved: 0,
+        total: 0,
+      })),
+      apiGet<{ cars: CarLite[] }>('/me/cars').catch(() => ({ cars: [] })),
+    ])
+    const activeCar = carsRes.cars.find((c) => c.isActive) ?? carsRes.cars[0] ?? null
+    return (
+      <ServicoArquivoView
+        service={remapRes.service}
+        saldo={saldo}
+        activeCar={activeCar}
+      />
+    )
   }
 
   let servicoRes: { servico: Servico }

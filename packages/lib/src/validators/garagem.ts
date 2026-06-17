@@ -47,6 +47,7 @@ export const updateCarSchema = z
 
 export type UpdateCarBody = z.infer<typeof updateCarSchema>
 
-// Formato canônico da placa (uppercase, sem espaço/hífen). Use no client antes
-// de exibir, e no server antes de gravar.
-export const normalizePlate = (raw: string): string => raw.replace(/[^A-Z0-9]/gi, '').toUpperCase()
+// Re-export pra preservar a superfície atual (`import { normalizePlate } from
+// './garagem'`). A implementação canônica vive em `formatters` desde que foi
+// generalizada pra outros contextos além de validação.
+export { normalizePlate } from '../formatters/index'

@@ -1,12 +1,23 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import Link from 'next/link'
-import type { ReactNode } from 'react'
+import { useState } from 'react'
 
 import { formatBRL, formatDateTimeBR, formatPoints } from '@tpc/lib/formatters'
 import { Card, DiagonalStripes, SecHeading, cn } from '@tpc/ui'
 
 import { ClientShell } from '@/components/layout/ClientShell'
+
+import { GarageEmptyBanner } from './_components/GarageEmptyBanner'
+import { WelcomeModal } from './_components/WelcomeModal'
+
+// Lazy-load: o wizard de 5 passos com brand logos só entra no bundle quando
+// o user abre o modal. Mesma estratégia da /garagem.
+const AddCarModal = dynamic(
+  () => import('../garagem/_components/AddCarModal').then((m) => m.AddCarModal),
+  { ssr: false },
+)
 
 interface Saldo {
   available: number
@@ -29,13 +40,27 @@ interface Props {
   avatar: string
   saldo: Saldo
   atividade: AtividadeItem[]
+  carsCount: number
+  hasCar: boolean
+  shouldShowWelcome: boolean
 }
 
 const APPROX_PRICE_PER_POINT_CENTS = 85
 
-export const DashboardView = ({ firstName, avatar, saldo, atividade }: Props) => {
+export const DashboardView = ({
+  firstName,
+  avatar,
+  saldo,
+  atividade,
+  carsCount,
+  hasCar,
+  shouldShowWelcome,
+}: Props) => {
   const greeting = getGreeting()
   const pendingCount = atividade.filter((a) => a.type === 'RESERVE').length
+  const [wizardOpen, setWizardOpen] = useState(false)
+  const openWizard = () => setWizardOpen(true)
+  const closeWizard = () => setWizardOpen(false)
 
   return (
     <ClientShell
@@ -50,10 +75,12 @@ export const DashboardView = ({ firstName, avatar, saldo, atividade }: Props) =>
           </h1>
           <p className="mt-0.5 text-[13px] tracking-tight text-tpc-text-secondary">
             {pendingCount > 0
-              ? `Tu tem ${pendingCount} pedido${pendingCount > 1 ? 's' : ''} em andamento e ${formatPoints(saldo.available)} pts disponíveis.`
-              : `Tu tem ${formatPoints(saldo.available)} pts disponíveis pra usar.`}
+              ? `Você tem ${pendingCount} pedido${pendingCount > 1 ? 's' : ''} em andamento e ${formatPoints(saldo.available)} pts disponíveis.`
+              : `Você tem ${formatPoints(saldo.available)} pts disponíveis pra usar.`}
           </p>
         </div>
+
+        {!hasCar && <GarageEmptyBanner onAddCar={openWizard} />}
 
         <div className="mb-3 grid gap-3 md:grid-cols-[1.4fr_1fr]">
           <SaldoHeroCard saldo={saldo} />
@@ -80,7 +107,7 @@ export const DashboardView = ({ firstName, avatar, saldo, atividade }: Props) =>
           />
           <StatCard
             label="Carros cadastrados"
-            value="0"
+            value={String(carsCount)}
             sub="até 3 por conta"
           />
         </div>
@@ -153,6 +180,11 @@ export const DashboardView = ({ firstName, avatar, saldo, atividade }: Props) =>
           </div>
         </div>
       </div>
+
+      {shouldShowWelcome && (
+        <WelcomeModal firstName={firstName} onAddCar={openWizard} />
+      )}
+      <AddCarModal open={wizardOpen} onClose={closeWizard} />
     </ClientShell>
   )
 }

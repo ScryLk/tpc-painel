@@ -8,6 +8,7 @@ import {
 } from './file-service.js'
 
 const validUuid = '11111111-2222-3333-4444-555555555555'
+const validCarId = '22222222-3333-4444-5555-666666666666'
 const validVin = '1HGCM82633A123459' // 17 chars sem I/O/Q
 
 describe('remapTechnicalDataSchema', () => {
@@ -58,15 +59,18 @@ describe('createRemapOrderSchema', () => {
   it('fluxo padrão exige serviceId', () => {
     const parsed = createRemapOrderSchema.parse({
       serviceId: validUuid,
+      carId: validCarId,
       isCustomQuote: false,
       technicalData: {},
     })
     expect(parsed.serviceId).toBe(validUuid)
+    expect(parsed.carId).toBe(validCarId)
     expect(parsed.isCustomQuote).toBe(false)
   })
 
   it('fluxo padrão sem serviceId rejeita', () => {
     const result = createRemapOrderSchema.safeParse({
+      carId: validCarId,
       isCustomQuote: false,
       technicalData: {},
     })
@@ -75,6 +79,7 @@ describe('createRemapOrderSchema', () => {
 
   it('fluxo custom aceita sem serviceId', () => {
     const parsed = createRemapOrderSchema.parse({
+      carId: validCarId,
       isCustomQuote: true,
       technicalData: { description: 'Quero algo específico pra meu motor' },
     })
@@ -85,6 +90,7 @@ describe('createRemapOrderSchema', () => {
   it('fluxo custom com serviceId também aceita', () => {
     const parsed = createRemapOrderSchema.parse({
       serviceId: validUuid,
+      carId: validCarId,
       isCustomQuote: true,
       technicalData: {},
     })
@@ -94,6 +100,7 @@ describe('createRemapOrderSchema', () => {
   it('serviceId null é equivalente a omitido em custom', () => {
     const parsed = createRemapOrderSchema.parse({
       serviceId: null,
+      carId: validCarId,
       isCustomQuote: true,
       technicalData: {},
     })
@@ -103,9 +110,37 @@ describe('createRemapOrderSchema', () => {
   it('default isCustomQuote=false', () => {
     const parsed = createRemapOrderSchema.parse({
       serviceId: validUuid,
+      carId: validCarId,
       technicalData: {},
     })
     expect(parsed.isCustomQuote).toBe(false)
+  })
+
+  it('rejeita sem carId (padrão)', () => {
+    const result = createRemapOrderSchema.safeParse({
+      serviceId: validUuid,
+      isCustomQuote: false,
+      technicalData: {},
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejeita sem carId (custom)', () => {
+    const result = createRemapOrderSchema.safeParse({
+      isCustomQuote: true,
+      technicalData: { description: 'Sem carro' },
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejeita carId não-uuid', () => {
+    const result = createRemapOrderSchema.safeParse({
+      serviceId: validUuid,
+      carId: 'not-a-uuid',
+      isCustomQuote: false,
+      technicalData: {},
+    })
+    expect(result.success).toBe(false)
   })
 })
 

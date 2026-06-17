@@ -30,8 +30,8 @@ const packages = [
     sortOrder: 2,
   },
   {
-    tier: 'pro',
-    name: 'Pro',
+    tier: 'stage2',
+    name: 'Stage 2',
     points: 1000,
     priceCents: 85000,
     bonusPoints: 150,
@@ -40,8 +40,8 @@ const packages = [
     sortOrder: 3,
   },
   {
-    tier: 'vip',
-    name: 'VIP',
+    tier: 'stage3',
+    name: 'Stage 3',
     points: 2000,
     priceCents: 160000,
     bonusPoints: 400,

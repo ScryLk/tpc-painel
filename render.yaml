@@ -1,0 +1,71 @@
+# Infrastructure as Code pra Render. Quando o repo é conectado, Render lê
+# esse arquivo e provisiona/atualiza os serviços listados. Editar e fazer
+# push faz o deploy refletir a mudança.
+#
+# Plano: free tier. Aceita o trade-off de cold start (~30-60s após 15min
+# de inatividade). Pra demo curta com TPC, é tolerável.
+
+services:
+  - type: web
+    name: tpc-painel-api
+    runtime: node
+    plan: free
+    region: ohio # US East — perto do Neon e do Upstash escolhidos
+    rootDir: . # monorepo, build acessa apps/api e packages/*
+    # Habilita corepack pra pegar a versão de pnpm declarada em
+    # package.json#packageManager. Build instala deps em modo workspace,
+    # gera o Prisma Client, e compila o API com tsup.
+    buildCommand: |
+      corepack enable &&
+      pnpm install --frozen-lockfile &&
+      pnpm --filter @tpc/db exec prisma generate &&
+      pnpm --filter @tpc/api build
+    # Bundle único em apps/api/dist/server.js. PORT é injetado pelo Render
+    # e o server já lê via env.PORT ?? env.API_PORT.
+    startCommand: node apps/api/dist/server.js
+    healthCheckPath: /health
+    autoDeploy: true # deploy automático em todo push na branch main
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # === Secrets ===
+      # Estes ficam vazios no yaml e devem ser preenchidos no dashboard
+      # Render. `sync: false` impede que mudanças via yaml sobrescrevam o
+      # valor configurado no dashboard.
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: CLERK_WEBHOOK_SECRET
+        sync: false
+      # === Mercado Pago (mock=true pra demo, não exige credenciais reais) ===
+      - key: MP_MOCK
+        value: 'true'
+      - key: MP_WEBHOOK_SECRET
+        sync: false
+      # === Email ===
+      # RESEND_API_KEY ausente = dry-run (loga em vez de mandar). Setar no
+      # dashboard se quiser email real (e tiver domínio verificado).
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        value: 'TPC Performance <onboarding@resend.dev>'
+      - key: EMAIL_REPLY_TO
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      # === URLs públicas (precisam ser ajustadas após primeiro deploy) ===
+      # API_PUBLIC_URL: a URL final do próprio service no Render (ex:
+      # https://tpc-painel-api.onrender.com). Setar manualmente após o
+      # primeiro deploy quando Render atribuir o domínio.
+      - key: API_PUBLIC_URL
+        sync: false
+      # NEXT_PUBLIC_SITE_URL: URL do frontend no Vercel (preencher após
+      # deploy do front).
+      - key: NEXT_PUBLIC_SITE_URL
+        sync: false
+      # === Leads ingest token ===
+      - key: LEADS_INGEST_TOKEN
+        sync: false

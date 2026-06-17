@@ -1,6 +1,6 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 
 import { cn } from '../lib/cn'
 
@@ -23,14 +23,21 @@ export const DesktopDrawer = ({
   footer,
   widthClassName = 'w-[480px]',
 }: DesktopDrawerProps) => {
+  // Esc fecha. Sem backdrop interceptor, esse é o fallback de teclado
+  // (botão X cobre o caso mouse). Click em outra row continua interagindo
+  // com a lista — comportamento de side panel, não de modal.
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [open, onClose])
+
   if (!open) return null
   return (
     <>
-      <div
-        role="presentation"
-        onClick={onClose}
-        className="absolute inset-0 z-10 bg-black/60"
-      />
       <aside
         className={cn(
           'absolute bottom-0 right-0 top-0 z-20 flex flex-col border-l border-tpc-border bg-tpc-bg shadow-[-20px_0_60px_rgba(0,0,0,0.5)]',

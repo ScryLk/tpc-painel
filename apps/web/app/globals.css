@@ -1,5 +1,10 @@
 @import 'tailwindcss';
 
+/* Tailwind v4 só escaneia o próprio package por default. Os components em
+ * `packages/ui` (MonthCalendar com grid-cols-7, etc) usam classes que não
+ * aparecem em apps/web, então sem @source explícito elas somem do bundle. */
+@source "../../../packages/ui/src/**/*.{ts,tsx}";
+
 @theme {
   /* surfaces (dark) */
   --color-tpc-bg: #000000;

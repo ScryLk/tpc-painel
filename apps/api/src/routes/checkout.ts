@@ -3,6 +3,7 @@ import type { FastifyPluginAsync } from 'fastify'
 import { checkoutBodySchema } from '@tpc/lib/validators'
 import { canInstall, totalCreditedPoints } from '@tpc/lib/business'
 
+import { queueEmailIfConsented, siteUrl } from '../emails/jobs.js'
 import {
   BusinessError,
   ForbiddenError,
@@ -10,6 +11,21 @@ import {
   UnauthorizedError,
 } from '../lib/errors.js'
 import { createCardPreference, createPixPayment } from '../lib/mercadopago.js'
+
+const formatBRL = (cents: number): string =>
+  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+    cents / 100,
+  )
+
+const formatExpiration = (iso: string): string => {
+  const date = new Date(iso)
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
+}
 
 export const checkoutRoutes: FastifyPluginAsync = async (app) => {
   app.post('/checkout', { preHandler: [app.requireAuth] }, async (request) => {
@@ -84,6 +100,22 @@ export const checkoutRoutes: FastifyPluginAsync = async (app) => {
             qrCode: result.qrCode,
             qrCodeBase64: result.qrCodeBase64,
             mpExpiresAt: new Date(result.expiresAt),
+          },
+        })
+
+        // Email best-effort com link pra reabrir o QR. Util pra quem fecha a
+        // aba antes de pagar (Pix MP expira em ~30min).
+        await queueEmailIfConsented(app.prisma, user.id, {
+          kind: 'pixQrCreated',
+          to: user.email,
+          props: {
+            siteUrl: siteUrl(),
+            customerName: user.name,
+            packageName: pkg.name,
+            pointsTotal: pointsCredited,
+            amountBRL: formatBRL(pkg.priceCents),
+            expiresAt: formatExpiration(result.expiresAt),
+            reopenUrl: `${siteUrl()}/pontos/checkout/${purchase.id}`,
           },
         })
 

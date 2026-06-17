@@ -106,11 +106,22 @@ model User {
   email           String    @unique
   name            String
   phone           String?
+  // CPF (11 dígitos) ou CNPJ (14). Único com sparse (NULL permitido múltiplo).
+  cpfCnpj         String?   @unique
+  // URL pública do avatar. Quando user sobe via Clerk SDK, copiamos imageUrl
+  // do Clerk pra cá no próximo sync. Sempre absoluta.
+  avatarUrl       String?
   role            Role      @default(CUSTOMER)
   pendingDeletion Boolean   @default(false)
+  // Null = user nunca fechou o welcome modal do onboarding. Setado pelo
+  // POST /me/onboarding/dismiss. "Completou" o onboarding é derivado de
+  // cars.length, este campo só registra dismiss explícito.
+  onboardingDismissedAt DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   deletedAt       DateTime?
+
+  address         Address?
 
   cars            Car[]
   purchases       Purchase[]
@@ -124,6 +135,10 @@ model User {
   exportRequests  DataExportRequest[]
   deletionRequest AccountDeletion?
   consent         Consent?
+  notifications   Notification[]
+  leadReplies     Lead[]
+  marketingCampaigns MarketingCampaign[]
+  marketingDeliveries MarketingCampaignDelivery[]
 
   @@index([deletedAt])
 }
@@ -487,4 +502,159 @@ model Consent {
   updatedAt             DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id])
+}
+
+// Endereço opcional do cliente (1:1 com User). Usado pra emissão de NF e
+// correspondência. CEP brasileiro (8 dígitos), UF em 2 letras.
+model Address {
+  userId       String   @id
+  cep          String
+  street       String
+  number       String
+  complement   String?
+  neighborhood String
+  city         String
+  state        String   // UF, 2 chars
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Notificações genéricas exibidas no sino do app. Cada user tem sua linha
+// (broadcast = loop criando 1 por user) pra rastrear readAt individualmente.
+// Eventos auto-criados pelo backend (pedido novo, TPC respondeu, status muda)
+// + envios manuais do painel admin TPC (próximo PR).
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  kind      NotificationKind @default(INFO)
+  title     String
+  body      String?
+  // Link relativo pra onde clique deve navegar (ex: /pedido/abc). Opcional.
+  link      String?
+  // Origem facilita debug + futura agregação ("3 novas msgs do pedido X").
+  source    String?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+enum NotificationKind {
+  INFO       // neutro, ex: pedido criado
+  SUCCESS    // verde, ex: arquivo entregue, pedido aprovado
+  WARNING    // amarelo, ex: ação requerida
+  EVENT      // azul/info pra updates de status
+  ALERT      // vermelho, ex: pedido cancelado, problema
+}
+
+// ============================================================================
+// Leads (form da landing externa tpcperformance.com.br)
+// ============================================================================
+// Landing POSTa em /leads (token-gated), painel armazena e admin responde.
+// Cada lead permite 1 resposta no V1 (conversa continua no WhatsApp/email).
+
+model Lead {
+  id              String     @id @default(uuid())
+  name            String
+  email           String
+  phone           String?
+  vehicle         String?
+  year            String?
+  message         String
+  // Origem do lead. Default 'landing' pra futuras integrações (Instagram form,
+  // hot site de campanha, etc).
+  source          String     @default("landing")
+  status          LeadStatus @default(NEW)
+  // Audit do request original.
+  ipAddress       String?
+  userAgent       String?
+  // Preenchido quando admin responde. Status passa pra REPLIED na mesma tx.
+  replyMessage    String?
+  repliedAt       DateTime?
+  repliedByUserId String?
+  // Idempotência: landing pode passar Idempotency-Key pra evitar duplicar
+  // lead em reenvios de form (network retry, double click).
+  idempotencyKey  String?    @unique
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  repliedBy User? @relation(fields: [repliedByUserId], references: [id])
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([email])
+}
+
+enum LeadStatus {
+  NEW       // lead recebido, aguardando triagem
+  REPLIED   // admin já respondeu por email
+  ARCHIVED  // dispensado (spam, inválido), sem resposta
+}
+
+// ============================================================================
+// Marketing campaigns
+// ============================================================================
+// Spec: specs/admin-marketing-campaigns.md. Fase 1: criar campanha (DRAFT),
+// editar, disparar pra todos com Consent.marketingEmail=true. Snapshot do
+// conteúdo na própria row — editar depois de SENT é bloqueado.
+
+model MarketingCampaign {
+  id             String         @id @default(uuid())
+  subject        String         // assunto do email
+  title          String         // título grande dentro do corpo
+  body           String         // texto, parágrafos separados por \n\n
+  ctaText        String?        // texto do botão (opcional)
+  ctaUrl         String?        // link do botão (opcional)
+  status         CampaignStatus @default(DRAFT)
+  estimatedReach Int?           // count de destinatários elegíveis no envio
+  createdById    String
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  sentAt         DateTime?
+
+  createdBy  User                        @relation(fields: [createdById], references: [id])
+  deliveries MarketingCampaignDelivery[]
+
+  @@index([status, createdAt(sort: Desc)])
+}
+
+enum CampaignStatus {
+  DRAFT     // sendo composta, ainda não disparada
+  SENDING   // fan-out em andamento (jobs na fila)
+  SENT      // todos os jobs concluídos (sucesso ou falha individual)
+  FAILED    // erro fatal antes do fan-out começar
+}
+
+model MarketingCampaignDelivery {
+  id            String         @id @default(uuid())
+  campaignId    String
+  userId        String
+  status        DeliveryStatus @default(QUEUED)
+  queuedAt      DateTime       @default(now())
+  sentAt        DateTime?
+  openedAt      DateTime?      // populado por webhook Resend (Fase 2)
+  clickedAt     DateTime?      // idem
+  failureReason String?
+  resendId      String?        // id do Resend pra cruzar com webhooks
+
+  campaign MarketingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  user     User              @relation(fields: [userId], references: [id])
+
+  @@unique([campaignId, userId])
+  @@index([userId])
+  @@index([campaignId, status])
+}
+
+enum DeliveryStatus {
+  QUEUED     // enfileirada, ainda não enviada
+  SENT       // Resend aceitou (resposta 200 do POST /emails)
+  DELIVERED  // webhook email.delivered (Fase 2)
+  OPENED     // webhook email.opened (Fase 2)
+  CLICKED    // webhook email.clicked (Fase 2)
+  BOUNCED    // webhook email.bounced (Fase 2)
+  FAILED     // erro no envio (rate-limit, validation, etc)
 }

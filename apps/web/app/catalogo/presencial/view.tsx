@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useMemo, useState } from 'react'
 
 import { isServiceCompatibleWithCar } from '@tpc/lib/business'
 import { formatPoints } from '@tpc/lib/formatters'
@@ -47,22 +48,112 @@ const CATEGORY_LABEL: Record<Servico['category'], string> = {
   CONFIG: 'DIAGNÓSTICO',
 }
 
+type CategoryKey = 'Todos' | 'Performance' | 'Estética' | 'Diagnóstico'
+
+const CATEGORY_TO_KEY: Record<Servico['category'], Exclude<CategoryKey, 'Todos'>> = {
+  PERFORMANCE: 'Performance',
+  AESTHETIC: 'Estética',
+  CONFIG: 'Diagnóstico',
+}
+
+type SortKey = 'menor_preco' | 'maior_preco' | 'popular'
+
+const SORT_LABEL: Record<SortKey, string> = {
+  menor_preco: 'Menor preço',
+  maior_preco: 'Maior preço',
+  popular: 'Mais pedidos',
+}
+
 export const CatalogoView = ({ servicos, saldo, activeCar }: Props) => {
-  const compatibleCount = activeCar
-    ? servicos.filter((s) => isServiceCompatibleWithCar(s.motorTypes, activeCar.motorType))
-        .length
-    : servicos.length
+  const [category, setCategory] = useState<CategoryKey>('Todos')
+  const [fitsBalance, setFitsBalance] = useState(false)
+  const [compatibleOnly, setCompatibleOnly] = useState(Boolean(activeCar))
+  const [query, setQuery] = useState('')
+  const [sort, setSort] = useState<SortKey>('popular')
+
+  // Contagem por categoria — sempre derivada do dataset bruto, ignora os
+  // outros filtros, pra mostrar quantos serviços existem em cada bucket.
+  const categoryCounts = useMemo(() => {
+    const counts: Record<CategoryKey, number> = {
+      Todos: servicos.length,
+      Performance: 0,
+      Estética: 0,
+      Diagnóstico: 0,
+    }
+    for (const s of servicos) counts[CATEGORY_TO_KEY[s.category]] += 1
+    return counts
+  }, [servicos])
+
+  // Compatíveis com carro (sempre, pro subtitle do header).
+  const compatibleCount = useMemo(() => {
+    if (!activeCar) return servicos.length
+    return servicos.filter((s) =>
+      isServiceCompatibleWithCar(s.motorTypes, activeCar.motorType),
+    ).length
+  }, [servicos, activeCar])
+
+  // Pipeline: categoria → checkbox filters → busca → sort.
+  const filtered = useMemo(() => {
+    let result = servicos
+    if (category !== 'Todos') {
+      result = result.filter((s) => CATEGORY_TO_KEY[s.category] === category)
+    }
+    if (fitsBalance) {
+      result = result.filter((s) => s.pts === 0 || s.pts <= saldo.available)
+    }
+    if (compatibleOnly && activeCar) {
+      result = result.filter((s) =>
+        isServiceCompatibleWithCar(s.motorTypes, activeCar.motorType),
+      )
+    }
+    const q = query.trim().toLowerCase()
+    if (q) {
+      result = result.filter(
+        (s) =>
+          s.name.toLowerCase().includes(q) ||
+          s.description.toLowerCase().includes(q),
+      )
+    }
+    const sorted = [...result]
+    if (sort === 'menor_preco') sorted.sort((a, b) => a.pts - b.pts)
+    else if (sort === 'maior_preco') sorted.sort((a, b) => b.pts - a.pts)
+    else if (sort === 'popular') {
+      sorted.sort((a, b) => Number(b.popular) - Number(a.popular))
+    }
+    return sorted
+  }, [servicos, category, fitsBalance, compatibleOnly, activeCar, query, sort, saldo.available])
+
+  const clearFilters = () => {
+    setCategory('Todos')
+    setFitsBalance(false)
+    setCompatibleOnly(false)
+    setQuery('')
+  }
 
   return (
     <ClientShell breadcrumbs={['Catálogo']} saldoAvailable={saldo.available}>
       <div className="flex h-full flex-col lg:flex-row">
-        <CatalogFilters activeCar={activeCar} />
+        <CatalogFilters
+          activeCar={activeCar}
+          category={category}
+          onCategory={setCategory}
+          categoryCounts={categoryCounts}
+          fitsBalance={fitsBalance}
+          onFitsBalance={setFitsBalance}
+          compatibleOnly={compatibleOnly}
+          onCompatibleOnly={setCompatibleOnly}
+        />
 
         <div className="tpc-scroll min-w-0 flex-1 overflow-y-auto p-5 md:p-7">
           <CatalogHeader
-            count={servicos.length}
+            count={filtered.length}
+            totalCount={servicos.length}
             compatibleCount={compatibleCount}
             activeCar={activeCar}
+            query={query}
+            onQuery={setQuery}
+            sort={sort}
+            onSort={setSort}
           />
 
           {!activeCar && (
@@ -79,16 +170,20 @@ export const CatalogoView = ({ servicos, saldo, activeCar }: Props) => {
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-3">
-            {servicos.map((s) => (
-              <ServiceCardV2
-                key={s.id}
-                servico={s}
-                car={activeCar}
-                saldo={saldo.available}
-              />
-            ))}
-          </div>
+          {filtered.length === 0 ? (
+            <EmptyResults query={query} onClear={clearFilters} />
+          ) : (
+            <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-3">
+              {filtered.map((s) => (
+                <ServiceCardV2
+                  key={s.id}
+                  servico={s}
+                  car={activeCar}
+                  saldo={saldo.available}
+                />
+              ))}
+            </div>
+          )}
 
           <p className="mt-7 rounded-xl border border-tpc-border bg-tpc-surface px-3.5 py-3 text-xs text-tpc-text-secondary">
             <span className="tpc-eyebrow mr-1.5">Presencial</span>
@@ -101,15 +196,67 @@ export const CatalogoView = ({ servicos, saldo, activeCar }: Props) => {
   )
 }
 
+const EmptyResults = ({
+  query,
+  onClear,
+}: {
+  query: string
+  onClear: () => void
+}) => (
+  <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-tpc-border bg-tpc-surface px-6 py-12 text-center">
+    <div className="mb-1 flex h-12 w-12 items-center justify-center rounded-xl border border-tpc-border bg-tpc-elevated text-tpc-text-tertiary">
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+      >
+        <circle cx="11" cy="11" r="8" />
+        <path d="M21 21l-4.3-4.3M8 11h6" />
+      </svg>
+    </div>
+    <p className="text-[14px] font-semibold text-tpc-text">
+      {query ? `Nada pra "${query}"` : 'Nenhum serviço com esses filtros'}
+    </p>
+    <p className="text-[12px] text-tpc-text-tertiary">
+      Tente outra combinação ou limpe os filtros.
+    </p>
+    <button
+      type="button"
+      onClick={onClear}
+      className="mt-3 rounded-lg border border-tpc-border bg-tpc-surface px-3 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-tpc-text-secondary transition hover:border-tpc-border-strong hover:bg-tpc-elevated"
+    >
+      Limpar filtros
+    </button>
+  </div>
+)
+
 const CatalogHeader = ({
   count,
+  totalCount,
   compatibleCount,
   activeCar,
+  query,
+  onQuery,
+  sort,
+  onSort,
 }: {
   count: number
+  totalCount: number
   compatibleCount: number
   activeCar: CarLite | null
+  query: string
+  onQuery: (v: string) => void
+  sort: SortKey
+  onSort: (v: SortKey) => void
 }) => {
+  const [sortOpen, setSortOpen] = useState(false)
+  const filtered = count !== totalCount
   return (
     <div className="mb-5 flex flex-col items-start justify-between gap-3 md:flex-row md:items-end">
       <div>
@@ -117,14 +264,19 @@ const CatalogHeader = ({
           Catálogo · Presencial
         </h2>
         <p className="mt-1 text-xs text-tpc-text-secondary">
-          {count} {count === 1 ? 'serviço' : 'serviços'}
+          {count} de {totalCount} {totalCount === 1 ? 'serviço' : 'serviços'}
           {activeCar &&
             ` · ${compatibleCount} compatíveis com ${activeCar.brand} ${activeCar.model}`}
+          {filtered && (
+            <span className="ml-1 font-mono text-[10px] uppercase tracking-[0.12em] text-tpc-red">
+              · filtrado
+            </span>
+          )}
         </p>
       </div>
 
       <div className="flex flex-shrink-0 items-center gap-2">
-        <div className="hidden w-60 items-center gap-2 rounded-lg border border-tpc-border bg-tpc-surface px-3 py-2 sm:flex">
+        <label className="hidden w-60 items-center gap-2 rounded-lg border border-tpc-border bg-tpc-surface px-3 py-2 focus-within:border-tpc-border-strong sm:flex">
           <svg
             width="13"
             height="13"
@@ -140,29 +292,71 @@ const CatalogHeader = ({
             <circle cx="11" cy="11" r="8" />
             <path d="M21 21l-4.3-4.3" />
           </svg>
-          <span className="flex-1 text-xs text-tpc-text-tertiary">
-            Buscar nesta lista...
-          </span>
-        </div>
-        <button
-          type="button"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-tpc-border px-3 py-2 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-tpc-text-secondary"
-        >
-          <svg
-            width="11"
-            height="11"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => onQuery(e.target.value)}
+            placeholder="Buscar nesta lista..."
+            className="flex-1 bg-transparent text-xs text-tpc-text placeholder:text-tpc-text-tertiary focus:outline-none"
+            autoComplete="off"
+            spellCheck={false}
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => onQuery('')}
+              aria-label="Limpar busca"
+              className="flex h-4 w-4 cursor-pointer items-center justify-center rounded-full text-tpc-text-tertiary hover:bg-tpc-elevated hover:text-tpc-text"
+            >
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </label>
+
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setSortOpen((v) => !v)}
+            className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-tpc-border px-3 py-2 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-tpc-text-secondary transition hover:border-tpc-border-strong hover:bg-tpc-elevated"
           >
-            <path d="M3 6h18M6 12h12M9 18h6" />
-          </svg>
-          Menor preço
-        </button>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M3 6h18M6 12h12M9 18h6" />
+            </svg>
+            {SORT_LABEL[sort]}
+          </button>
+          {sortOpen && (
+            <>
+              <button
+                type="button"
+                aria-label="Fechar"
+                onClick={() => setSortOpen(false)}
+                className="fixed inset-0 z-10 cursor-default"
+              />
+              <div className="absolute right-0 top-full z-20 mt-1 flex w-48 flex-col overflow-hidden rounded-lg border border-tpc-border bg-tpc-bg shadow-lg shadow-black/40">
+                {(Object.keys(SORT_LABEL) as SortKey[]).map((key) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => {
+                      onSort(key)
+                      setSortOpen(false)
+                    }}
+                    className={cn(
+                      'cursor-pointer px-3 py-2 text-left font-mono text-[10px] uppercase tracking-[0.08em] transition',
+                      sort === key
+                        ? 'bg-tpc-red/10 text-tpc-red'
+                        : 'text-tpc-text-secondary hover:bg-tpc-elevated hover:text-tpc-text',
+                    )}
+                  >
+                    {SORT_LABEL[key]}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -203,7 +397,26 @@ const ActiveCarPanel = ({ car }: { car: CarLite }) => {
   )
 }
 
-const CatalogFilters = ({ activeCar }: { activeCar: CarLite | null }) => {
+const CatalogFilters = ({
+  activeCar,
+  category,
+  onCategory,
+  categoryCounts,
+  fitsBalance,
+  onFitsBalance,
+  compatibleOnly,
+  onCompatibleOnly,
+}: {
+  activeCar: CarLite | null
+  category: CategoryKey
+  onCategory: (c: CategoryKey) => void
+  categoryCounts: Record<CategoryKey, number>
+  fitsBalance: boolean
+  onFitsBalance: (v: boolean) => void
+  compatibleOnly: boolean
+  onCompatibleOnly: (v: boolean) => void
+}) => {
+  const categories: CategoryKey[] = ['Todos', 'Performance', 'Estética', 'Diagnóstico']
   return (
     <aside className="hidden w-60 flex-shrink-0 overflow-y-auto border-r border-tpc-border p-6 lg:block">
       {activeCar && <ActiveCarPanel car={activeCar} />}
@@ -225,16 +438,14 @@ const CatalogFilters = ({ activeCar }: { activeCar: CarLite | null }) => {
           Categoria
         </div>
         <div className="flex flex-col gap-1.5">
-          {(
-            [
-              ['Todos', 12, true],
-              ['Performance', 5, false],
-              ['Estética', 2, false],
-              ['Diagnóstico', 3, false],
-              ['Combos', 1, false],
-            ] as Array<[string, number, boolean]>
-          ).map(([label, count, active]) => (
-            <FilterRadio key={label} label={label} count={count} active={active} />
+          {categories.map((label) => (
+            <FilterRadio
+              key={label}
+              label={label}
+              count={categoryCounts[label]}
+              active={category === label}
+              onClick={() => onCategory(label)}
+            />
           ))}
         </div>
       </div>
@@ -243,10 +454,24 @@ const CatalogFilters = ({ activeCar }: { activeCar: CarLite | null }) => {
         <div className="mb-2.5 font-mono text-[9px] font-semibold uppercase tracking-[0.18em] text-tpc-text-tertiary">
           Filtros
         </div>
-        <FilterCheckbox label="Cabe no meu saldo" active />
-        <FilterCheckbox label="Compatível com meu carro" active />
-        <FilterCheckbox label="Inclui garantia" />
-        <FilterCheckbox label="Até 1h de execução" />
+        <FilterCheckbox
+          label="Cabe no meu saldo"
+          active={fitsBalance}
+          onChange={onFitsBalance}
+        />
+        <FilterCheckbox
+          label="Compatível com meu carro"
+          active={compatibleOnly}
+          onChange={onCompatibleOnly}
+          disabled={!activeCar}
+          disabledHint="cadastre um carro"
+        />
+        <FilterCheckbox label="Inclui garantia" disabled disabledHint="em breve" />
+        <FilterCheckbox
+          label="Até 1h de execução"
+          disabled
+          disabledHint="em breve"
+        />
       </div>
     </aside>
   )
@@ -294,17 +519,20 @@ const FilterRadio = ({
   label,
   count,
   active,
+  onClick,
 }: {
   label: string
   count: number
   active?: boolean
+  onClick: () => void
 }) => {
   return (
     <button
       type="button"
+      onClick={onClick}
       className={cn(
-        'flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-left',
-        active && 'bg-tpc-red/10',
+        'flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-left transition',
+        active ? 'bg-tpc-red/10' : 'hover:bg-tpc-surface',
       )}
     >
       <span
@@ -328,16 +556,42 @@ const FilterRadio = ({
   )
 }
 
-const FilterCheckbox = ({ label, active }: { label: string; active?: boolean }) => {
+const FilterCheckbox = ({
+  label,
+  active,
+  onChange,
+  disabled,
+  disabledHint,
+}: {
+  label: string
+  active?: boolean
+  onChange?: (v: boolean) => void
+  disabled?: boolean
+  disabledHint?: string
+}) => {
+  const isOn = !disabled && Boolean(active)
   return (
-    <label className="flex cursor-pointer items-center gap-2 py-1.5">
+    <label
+      className={cn(
+        'flex items-center gap-2 py-1.5',
+        disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
+      )}
+      title={disabled ? disabledHint : undefined}
+    >
+      <input
+        type="checkbox"
+        checked={isOn}
+        disabled={disabled}
+        onChange={(e) => onChange?.(e.target.checked)}
+        className="sr-only"
+      />
       <span
         className={cn(
-          'flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center rounded border',
-          active ? 'border-tpc-red bg-tpc-red' : 'border-tpc-border-strong bg-transparent',
+          'flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center rounded border transition',
+          isOn ? 'border-tpc-red bg-tpc-red' : 'border-tpc-border-strong bg-transparent',
         )}
       >
-        {active && (
+        {isOn && (
           <svg
             width="9"
             height="9"
@@ -354,10 +608,15 @@ const FilterCheckbox = ({ label, active }: { label: string; active?: boolean }) 
         )}
       </span>
       <span
-        className={cn('text-xs', active ? 'text-tpc-text' : 'text-tpc-text-secondary')}
+        className={cn('flex-1 text-xs', isOn ? 'text-tpc-text' : 'text-tpc-text-secondary')}
       >
         {label}
       </span>
+      {disabled && disabledHint && (
+        <span className="font-mono text-[8px] uppercase tracking-[0.12em] text-tpc-text-tertiary">
+          {disabledHint}
+        </span>
+      )}
     </label>
   )
 }

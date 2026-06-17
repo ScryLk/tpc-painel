@@ -21,6 +21,9 @@ const { mockPrisma, fakeUser } = vi.hoisted(() => {
       updateMany: ReturnType<typeof vi.fn>
     }
     transaction: { create: ReturnType<typeof vi.fn> }
+    message: { create: ReturnType<typeof vi.fn> }
+    notification: { create: ReturnType<typeof vi.fn> }
+    consent: { findUnique: ReturnType<typeof vi.fn> }
   }
 
   const tx: MockTx = {
@@ -43,6 +46,9 @@ const { mockPrisma, fakeUser } = vi.hoisted(() => {
       updateMany: vi.fn(),
     },
     transaction: { create: vi.fn() },
+    message: { create: vi.fn() },
+    notification: { create: vi.fn() },
+    consent: { findUnique: vi.fn() },
   }
 
   const mockPrisma = {
@@ -52,6 +58,9 @@ const { mockPrisma, fakeUser } = vi.hoisted(() => {
     pointsBalance: tx.pointsBalance,
     reservation: tx.reservation,
     transaction: tx.transaction,
+    message: tx.message,
+    notification: tx.notification,
+    consent: tx.consent,
     $transaction: vi.fn(async (fn: (innerTx: MockTx) => unknown) => fn(tx)),
     $connect: vi.fn(async () => undefined),
     $disconnect: vi.fn(async () => undefined),
@@ -119,12 +128,29 @@ import { buildServer } from '../server.js'
 
 const orderId = '11111111-2222-3333-4444-555555555555'
 const serviceId = '22222222-3333-4444-5555-666666666666'
+const carId = '33333333-4444-5555-6666-777777777777'
+
+const fakeCar = {
+  id: carId,
+  userId: fakeUser.id,
+  brand: 'Volkswagen',
+  model: 'Golf GTI',
+  year: 2020,
+  motorType: 'turbo',
+  plate: 'ABC1D23',
+  color: null,
+  isActive: true,
+  mapState: 'STOCK',
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  deletedAt: null,
+}
 
 const baseOrder = {
   id: orderId,
   protocol: 'TPC-2026-00001',
   userId: fakeUser.id,
-  carId: null,
+  carId,
   remapServiceId: serviceId,
   status: 'AWAITING_QUOTE' as const,
   isCustomQuote: true,
@@ -174,6 +200,7 @@ describe('POST /remap-orders', () => {
   })
 
   it('cria pedido custom em AWAITING_QUOTE sem reservar pts', async () => {
+    mockPrisma.car.findFirst.mockResolvedValueOnce(fakeCar)
     mockPrisma.remapOrder.count.mockResolvedValueOnce(0)
     mockPrisma.remapOrder.create.mockResolvedValueOnce({
       ...baseOrder,
@@ -186,6 +213,7 @@ describe('POST /remap-orders', () => {
       url: '/remap-orders',
       headers: { authorization: 'Bearer t' },
       payload: {
+        carId,
         isCustomQuote: true,
         technicalData: { description: 'Quero algo personalizado' },
       },
@@ -204,6 +232,7 @@ describe('POST /remap-orders', () => {
   })
 
   it('cria pedido padrão em ANALYZING com RESERVE atômico', async () => {
+    mockPrisma.car.findFirst.mockResolvedValueOnce(fakeCar)
     mockPrisma.remapService.findFirst.mockResolvedValueOnce(baseService)
     mockPrisma.pointsBalance.findUnique.mockResolvedValueOnce({
       userId: fakeUser.id,
@@ -232,6 +261,7 @@ describe('POST /remap-orders', () => {
       headers: { authorization: 'Bearer t' },
       payload: {
         serviceId,
+        carId,
         isCustomQuote: false,
         technicalData: { ecuModel: 'Bosch MED17.1', readMode: 'Bench' },
       },
@@ -258,6 +288,7 @@ describe('POST /remap-orders', () => {
   })
 
   it('rejeita quando saldo insuficiente', async () => {
+    mockPrisma.car.findFirst.mockResolvedValueOnce(fakeCar)
     mockPrisma.remapService.findFirst.mockResolvedValueOnce(baseService)
     mockPrisma.pointsBalance.findUnique.mockResolvedValueOnce({
       userId: fakeUser.id,
@@ -271,6 +302,7 @@ describe('POST /remap-orders', () => {
       headers: { authorization: 'Bearer t' },
       payload: {
         serviceId,
+        carId,
         isCustomQuote: false,
         technicalData: {},
       },
@@ -282,6 +314,7 @@ describe('POST /remap-orders', () => {
   })
 
   it('rejeita race quando updateMany count=0', async () => {
+    mockPrisma.car.findFirst.mockResolvedValueOnce(fakeCar)
     mockPrisma.remapService.findFirst.mockResolvedValueOnce(baseService)
     mockPrisma.pointsBalance.findUnique.mockResolvedValueOnce({
       userId: fakeUser.id,
@@ -294,7 +327,7 @@ describe('POST /remap-orders', () => {
       method: 'POST',
       url: '/remap-orders',
       headers: { authorization: 'Bearer t' },
-      payload: { serviceId, isCustomQuote: false, technicalData: {} },
+      payload: { serviceId, carId, isCustomQuote: false, technicalData: {} },
     })
 
     expect(res.statusCode).toBe(422)
@@ -302,6 +335,7 @@ describe('POST /remap-orders', () => {
   })
 
   it('bloqueia tentar usar serviço custom no fluxo padrão', async () => {
+    mockPrisma.car.findFirst.mockResolvedValueOnce(fakeCar)
     mockPrisma.remapService.findFirst.mockResolvedValueOnce({
       ...baseService,
       isCustom: true,
@@ -312,11 +346,56 @@ describe('POST /remap-orders', () => {
       method: 'POST',
       url: '/remap-orders',
       headers: { authorization: 'Bearer t' },
-      payload: { serviceId, isCustomQuote: false, technicalData: {} },
+      payload: { serviceId, carId, isCustomQuote: false, technicalData: {} },
     })
 
     expect(res.statusCode).toBe(422)
     expect(res.json()).toMatchObject({ error: { code: 'CUSTOM_REQUIRES_QUOTE' } })
+  })
+
+  it('rejeita custom sem carId (Zod)', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/remap-orders',
+      headers: { authorization: 'Bearer t' },
+      payload: {
+        isCustomQuote: true,
+        technicalData: { description: 'Sem carro' },
+      },
+    })
+
+    expect(res.statusCode).toBe(400)
+    expect(mockPrisma.remapOrder.create).not.toHaveBeenCalled()
+  })
+
+  it('rejeita padrão sem carId (Zod)', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/remap-orders',
+      headers: { authorization: 'Bearer t' },
+      payload: { serviceId, isCustomQuote: false, technicalData: {} },
+    })
+
+    expect(res.statusCode).toBe(400)
+    expect(mockPrisma.remapOrder.create).not.toHaveBeenCalled()
+  })
+
+  it('rejeita carro que não pertence ao user', async () => {
+    mockPrisma.car.findFirst.mockResolvedValueOnce(null)
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/remap-orders',
+      headers: { authorization: 'Bearer t' },
+      payload: {
+        carId,
+        isCustomQuote: true,
+        technicalData: { description: 'Carro alheio' },
+      },
+    })
+
+    expect(res.statusCode).toBe(404)
+    expect(mockPrisma.remapOrder.create).not.toHaveBeenCalled()
   })
 })
 

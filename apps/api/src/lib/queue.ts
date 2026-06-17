@@ -1,4 +1,10 @@
-import { Queue, Worker, type ConnectionOptions, type Processor } from 'bullmq'
+import {
+  Queue,
+  Worker,
+  type ConnectionOptions,
+  type JobsOptions,
+  type Processor,
+} from 'bullmq'
 
 import { env } from './env.js'
 
@@ -9,8 +15,11 @@ export const NOTIFICATIONS_QUEUE = 'notifications'
 const connection: ConnectionOptions = {
   // BullMQ aceita uma URL ou um config de IORedis. URL é menos código.
   // maxRetriesPerRequest: null é necessário pro Worker funcionar.
+  // enableReadyCheck: false é recomendado pra Redis gerenciado tipo Upstash
+  // (evita ping na inicialização que pode falhar em modos serverless).
   url: env.REDIS_URL,
   maxRetriesPerRequest: null,
+  enableReadyCheck: false,
 }
 
 const defaultJobOptions = {
@@ -33,11 +42,14 @@ const getQueue = (): Queue => {
 }
 
 // Enfileira um job. Tests mockam essa função via vi.mock no módulo inteiro.
+// opts.jobId pode ser usado pra de-dup (BullMQ ignora add com jobId
+// existente). Util pra throttling de marketing por exemplo.
 export const enqueue = async <T extends Record<string, unknown>>(
   name: string,
   data: T,
+  opts?: JobsOptions,
 ): Promise<void> => {
-  await getQueue().add(name, data)
+  await getQueue().add(name, data, opts)
 }
 
 // Agenda um job recorrente. Idempotente: remove agendamento anterior com
@@ -52,6 +64,21 @@ export const scheduleRepeatable = async (name: string, intervalMs: number): Prom
     }
   }
   await queue.add(name, {}, { repeat: { every: intervalMs } })
+}
+
+// Agenda um job recorrente via padrão cron (UTC). Usado quando precisa
+// rodar em horário específico (ex: '0 3 * * *' = 3h da manhã UTC todo dia)
+// em vez de intervalo fixo a partir do startup. Idempotente como o
+// scheduleRepeatable.
+export const scheduleCron = async (name: string, pattern: string): Promise<void> => {
+  const queue = getQueue()
+  const existing = await queue.getRepeatableJobs()
+  for (const job of existing) {
+    if (job.name === name) {
+      await queue.removeRepeatableByKey(job.key)
+    }
+  }
+  await queue.add(name, {}, { repeat: { pattern } })
 }
 
 // Catálogo dos processadores registrados. Workers dispatcham pelo job.name.

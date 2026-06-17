@@ -129,20 +129,20 @@ export const AgendarView = ({ servico, saldo, activeCar }: Props) => {
       breadcrumbs={['Catálogo', servico.name, 'Agendar']}
       saldoAvailable={saldo.available}
     >
-      <div className="mx-auto max-w-[1280px] px-6 py-7 md:px-10">
-        <div className="mb-6">
-          <h1 className="text-[26px] font-bold leading-tight tracking-[-0.03em] text-tpc-text">
+      <div className="mx-auto max-w-[1280px] px-6 py-4 md:px-10">
+        <div className="mb-3">
+          <h1 className="text-[20px] font-bold leading-tight tracking-[-0.03em] text-tpc-text">
             Agendar serviço
           </h1>
-          <p className="mt-1 text-[13px] text-tpc-text-secondary">
+          <p className="mt-0.5 text-[12px] text-tpc-text-secondary">
             {servico.name} · {activeCar.brand} {activeCar.model}
           </p>
         </div>
 
-        <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
-          <div className="min-w-0 space-y-4">
-            <Card className="flex items-center gap-3 p-4">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-tpc-border bg-tpc-elevated-2 text-tpc-red">
+        <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
+          <div className="min-w-0 space-y-3">
+            <Card className="flex items-center gap-3 p-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-tpc-border bg-tpc-elevated-2 text-tpc-red">
                 <svg
                   width="18"
                   height="18"
@@ -169,125 +169,123 @@ export const AgendarView = ({ servico, saldo, activeCar }: Props) => {
               </div>
             </Card>
 
-            <Card className="p-4">
-              <MonthCalendar
-                focused={focused}
-                selected={selected}
-                today={today}
-                spanDays={spanDays}
-                dayState={dayState}
-                onSelect={setSelected}
-                onPrev={() =>
-                  setFocused(new Date(focused.getFullYear(), focused.getMonth() - 1, 1))
-                }
-                onNext={() =>
-                  setFocused(new Date(focused.getFullYear(), focused.getMonth() + 1, 1))
-                }
-                minMonth={today}
-                maxMonth={maxDate}
-              />
+            <div className="grid gap-3 md:grid-cols-2">
+              <Card className="p-3">
+                <MonthCalendar
+                  focused={focused}
+                  selected={selected}
+                  today={today}
+                  spanDays={spanDays}
+                  dayState={dayState}
+                  onSelect={setSelected}
+                  onPrev={() =>
+                    setFocused(new Date(focused.getFullYear(), focused.getMonth() - 1, 1))
+                  }
+                  onNext={() =>
+                    setFocused(new Date(focused.getFullYear(), focused.getMonth() + 1, 1))
+                  }
+                  minMonth={today}
+                  maxMonth={maxDate}
+                />
 
-              {servico.durationDays > 1 && selected && (
-                <div className="mt-3 rounded-lg border border-tpc-red/30 bg-tpc-red/[0.06] px-3 py-2 text-xs">
-                  <span className="font-semibold text-tpc-red">Multi-dia:</span>{' '}
-                  <span className="text-tpc-text">
-                    Carro fica na TPC do dia {formatDateBr(selected)} ao{' '}
-                    {formatDateBr(computeEndDate(selected, servico.durationDays))}.
-                  </span>
+                {servico.durationDays > 1 && selected && (
+                  <div className="mt-2 rounded-lg border border-tpc-red/30 bg-tpc-red/[0.06] px-3 py-1.5 text-[11px]">
+                    <span className="font-semibold text-tpc-red">Multi-dia:</span>{' '}
+                    <span className="text-tpc-text">
+                      Carro fica na TPC do dia {formatDateBr(selected)} ao{' '}
+                      {formatDateBr(computeEndDate(selected, servico.durationDays))}.
+                    </span>
+                  </div>
+                )}
+              </Card>
+
+              <div className="flex flex-col gap-3">
+                <div>
+                  <div className="tpc-eyebrow mb-1.5">Chegada</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(['manha', 'tarde'] as ArrivalSlot[]).map((s) => {
+                      const active = slot === s
+                      return (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => setSlot(s)}
+                          className={cn(
+                            'cursor-pointer rounded-xl border px-3 py-3 text-left transition',
+                            active
+                              ? 'border-tpc-red bg-tpc-red/[0.08]'
+                              : 'border-tpc-border bg-tpc-surface hover:border-tpc-red/40',
+                          )}
+                        >
+                          <div className="text-[13px] font-semibold tracking-tight">
+                            {slotLabel[s]}
+                          </div>
+                          <div
+                            className={cn(
+                              'mt-0.5 font-mono text-[9px] tracking-wider',
+                              active ? 'text-tpc-red' : 'text-tpc-text-tertiary',
+                            )}
+                          >
+                            {active ? 'Selecionado' : 'Clica pra selecionar'}
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <p className="mt-1.5 text-[11px] text-tpc-text-tertiary">
+                    TPC confirma horário exato no WhatsApp.
+                  </p>
                 </div>
-              )}
-            </Card>
 
-            <div>
-              <div className="tpc-eyebrow mb-2">Chegada</div>
-              <div className="grid grid-cols-2 gap-2">
-                {(['manha', 'tarde'] as ArrivalSlot[]).map((s) => {
-                  const active = slot === s
-                  return (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => setSlot(s)}
-                      className={cn(
-                        'cursor-pointer rounded-xl border px-3 py-3 text-left transition',
-                        active
-                          ? 'border-tpc-red bg-tpc-red/[0.08]'
-                          : 'border-tpc-border bg-tpc-surface hover:border-tpc-red/40',
-                      )}
-                    >
-                      <div className="text-sm font-semibold tracking-tight">
-                        {slotLabel[s]}
-                      </div>
-                      <div
-                        className={cn(
-                          'mt-0.5 font-mono text-[9px] tracking-wider',
-                          active ? 'text-tpc-red' : 'text-tpc-text-tertiary',
-                        )}
-                      >
-                        {active ? 'Selecionado' : 'Clica pra selecionar'}
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
-              <p className="mt-1.5 text-[11px] text-tpc-text-tertiary">
-                TPC confirma horário exato no WhatsApp.
-              </p>
-            </div>
-
-            <div>
-              <div className="tpc-eyebrow mb-2">Observações (opcional)</div>
-              <textarea
-                value={observations}
-                onChange={(e) => setObservations(e.target.value.slice(0, 500))}
-                placeholder="Qualquer detalhe pro tuner saber"
-                rows={3}
-                className="w-full rounded-xl border border-tpc-border bg-tpc-surface px-3.5 py-2.5 text-sm outline-none placeholder:text-tpc-text-tertiary focus:border-tpc-red focus:ring-2 focus:ring-tpc-red/30"
-              />
-              <div className="mt-1 text-right font-mono text-[9px] tracking-wider text-tpc-text-tertiary">
-                {observations.length}/500
+                <div>
+                  <div className="tpc-eyebrow mb-1.5">Observações (opcional)</div>
+                  <textarea
+                    value={observations}
+                    onChange={(e) => setObservations(e.target.value.slice(0, 500))}
+                    placeholder="Qualquer detalhe pro tuner saber"
+                    rows={3}
+                    className="w-full rounded-xl border border-tpc-border bg-tpc-surface px-3 py-2 text-[13px] outline-none placeholder:text-tpc-text-tertiary focus:border-tpc-red focus:ring-2 focus:ring-tpc-red/30"
+                  />
+                  <div className="mt-0.5 text-right font-mono text-[9px] tracking-wider text-tpc-text-tertiary">
+                    {observations.length}/500
+                  </div>
+                </div>
               </div>
             </div>
 
-            <Card className="p-4">
-              <div className="tpc-eyebrow mb-2">Política de cancelamento</div>
-              <ul className="space-y-1.5 text-xs">
-                <li className="flex items-start gap-2">
-                  <span className="mt-1 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-tpc-green" />
-                  <span className="text-tpc-text">
-                    Mais de 24h antes: cancelamento livre, 100% volta
-                  </span>
+            <Card className="p-3">
+              <div className="tpc-eyebrow mb-1.5">Política de cancelamento</div>
+              <ul className="flex flex-wrap gap-x-4 gap-y-1 text-[11.5px]">
+                <li className="flex items-center gap-1.5">
+                  <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-tpc-green" />
+                  <span className="text-tpc-text">+24h: livre, 100% volta</span>
                 </li>
-                <li className="flex items-start gap-2">
-                  <span className="mt-1 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-tpc-yellow" />
-                  <span className="text-tpc-text">
-                    Entre 2h e 24h: multa de 20%, 80% volta
-                  </span>
+                <li className="flex items-center gap-1.5">
+                  <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-tpc-yellow" />
+                  <span className="text-tpc-text">2h-24h: multa 20%</span>
                 </li>
-                <li className="flex items-start gap-2">
-                  <span className="mt-1 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-tpc-red" />
-                  <span className="text-tpc-text">
-                    Menos de 2h antes: aprovação manual TPC
-                  </span>
+                <li className="flex items-center gap-1.5">
+                  <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-tpc-red" />
+                  <span className="text-tpc-text">&lt;2h: aprovação manual</span>
                 </li>
               </ul>
             </Card>
           </div>
 
           <aside className="lg:sticky lg:top-4 lg:self-start">
-            <Card elevated className="p-5">
+            <Card elevated className="p-4">
               <div className="tpc-eyebrow">Resumo</div>
-              <div className="mt-2 text-base font-semibold tracking-tight">
+              <div className="mt-1.5 text-[14px] font-semibold tracking-tight">
                 {servico.name}
               </div>
-              <div className="mt-3 flex items-baseline gap-1.5">
-                <span className="tpc-num text-[32px] font-semibold leading-none tracking-tight text-tpc-text">
+              <div className="mt-2 flex items-baseline gap-1.5">
+                <span className="tpc-num text-[26px] font-semibold leading-none tracking-tight text-tpc-text">
                   {formatPoints(servico.pts)}
                 </span>
-                <span className="text-xs text-tpc-text-secondary">pts</span>
+                <span className="text-[11px] text-tpc-text-secondary">pts</span>
               </div>
 
-              <div className="mt-4 space-y-2 border-t border-tpc-border pt-4 text-[12px]">
+              <div className="mt-3 space-y-1.5 border-t border-tpc-border pt-3 text-[11.5px]">
                 <SummaryRow
                   label="Data escolhida"
                   value={selected ? formatDateBr(selected) : '—'}
@@ -299,19 +297,19 @@ export const AgendarView = ({ servico, saldo, activeCar }: Props) => {
                 />
               </div>
 
-              <div className="mt-4 rounded-lg border border-tpc-yellow/30 bg-tpc-yellow/10 p-3 text-[11px] leading-relaxed text-tpc-text-secondary">
+              <div className="mt-3 rounded-lg border border-tpc-yellow/30 bg-tpc-yellow/10 p-2.5 text-[10.5px] leading-relaxed text-tpc-text-secondary">
                 <span className="font-semibold text-tpc-yellow">Reserva:</span>{' '}
                 {formatPoints(servico.pts)} pts ficam reservados até TPC confirmar
                 (até 24h).
               </div>
 
               {error && (
-                <div className="mt-3 rounded-lg border border-tpc-red/40 bg-tpc-red/10 px-3 py-2 text-xs text-tpc-red">
+                <div className="mt-2 rounded-lg border border-tpc-red/40 bg-tpc-red/10 px-3 py-1.5 text-[11px] text-tpc-red">
                   {error}
                 </div>
               )}
 
-              <div className="mt-5">
+              <div className="mt-3">
                 <Button
                   fullWidth
                   disabled={!selected || isPending}
@@ -323,7 +321,7 @@ export const AgendarView = ({ servico, saldo, activeCar }: Props) => {
                       ? `Confirmar reserva · ${formatPoints(servico.pts)} pts`
                       : 'Escolha uma data'}
                 </Button>
-                <p className="mt-2 text-center font-mono text-[9px] uppercase tracking-[0.14em] text-tpc-text-tertiary">
+                <p className="mt-1.5 text-center font-mono text-[9px] uppercase tracking-[0.14em] text-tpc-text-tertiary">
                   Pontos reservados até confirmação
                 </p>
               </div>

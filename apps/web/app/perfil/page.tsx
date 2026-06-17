@@ -1,5 +1,3 @@
-import { currentUser } from '@clerk/nextjs/server'
-
 import { apiGet } from '@/lib/api/server'
 
 import { PerfilView } from './view'
@@ -10,11 +8,31 @@ interface Saldo {
   total: number
 }
 
+interface Me {
+  id: string
+  email: string
+  name: string
+  phone: string | null
+  cpfCnpj: string | null
+  avatarUrl: string | null
+  address: {
+    cep: string
+    street: string
+    number: string
+    complement: string | null
+    neighborhood: string
+    city: string
+    state: string
+  } | null
+}
+
 export const metadata = { title: 'Perfil · TPC Painel' }
 
+// Mesma decisão do dashboard: GET /me (DB local, synced via Clerk webhook)
+// substitui currentUser(), economizando round-trip pra clerk.com.
 export default async function PerfilPage() {
-  const [user, saldo] = await Promise.all([
-    currentUser(),
+  const [me, saldo] = await Promise.all([
+    apiGet<Me>('/me').catch(() => null),
     apiGet<Saldo>('/me/saldo').catch(() => ({
       available: 0,
       reserved: 0,
@@ -22,17 +40,13 @@ export default async function PerfilPage() {
     })),
   ])
 
-  const firstName =
-    user?.firstName ?? user?.emailAddresses[0]?.emailAddress?.split('@')[0] ?? 'Cliente'
-  const lastName = user?.lastName ?? ''
-  const fullName = `${firstName} ${lastName}`.trim()
+  const fullName = me?.name?.trim() || me?.email?.split('@')[0] || 'Cliente'
+  const firstName = fullName.split(' ')[0] ?? 'Cliente'
+  const parts = fullName.split(/\s+/)
   const initials =
-    user?.firstName && user?.lastName
-      ? `${user.firstName[0] ?? ''}${user.lastName[0] ?? ''}`.toUpperCase()
+    parts.length >= 2
+      ? `${parts[0]![0]}${parts[parts.length - 1]![0]}`.toUpperCase()
       : (firstName[0] ?? 'T').toUpperCase()
-  const email = user?.emailAddresses[0]?.emailAddress ?? '—'
-  const phone = user?.phoneNumbers[0]?.phoneNumber ?? '—'
-  const id = user?.id?.slice(-5).toUpperCase() ?? '—'
 
   return (
     <PerfilView
@@ -41,9 +55,12 @@ export default async function PerfilPage() {
         firstName,
         fullName,
         initials,
-        email,
-        phone,
-        id,
+        email: me?.email ?? '',
+        phone: me?.phone ?? '',
+        cpfCnpj: me?.cpfCnpj ?? '',
+        avatarUrl: me?.avatarUrl ?? null,
+        address: me?.address ?? null,
+        id: me?.id?.slice(-5).toUpperCase() ?? '—',
       }}
     />
   )

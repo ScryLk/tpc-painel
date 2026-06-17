@@ -1,5 +1,6 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState, useTransition } from 'react'
 
@@ -8,8 +9,14 @@ import { Button, Card, DiagonalStripes, cn } from '@tpc/ui'
 
 import { ClientShell } from '@/components/layout/ClientShell'
 
-import { AddCarModal } from './_components/AddCarModal'
 import type { CarItem } from './page'
+
+// Lazy-load: o wizard de 5 passos + brand logos só vai pro bundle quando
+// o usuário abre o modal. Reduz o initial JS da rota /garagem.
+const AddCarModal = dynamic(
+  () => import('./_components/AddCarModal').then((m) => m.AddCarModal),
+  { ssr: false },
+)
 
 interface Saldo {
   available: number
@@ -208,7 +215,7 @@ const GarageCarRow = ({
       <div className="flex items-center gap-4 p-3.5">
         <div className="relative h-[75px] w-[130px] flex-shrink-0">
           <img
-            src="/sprites/car-neon.png"
+            src="/sprites/car-neon.webp"
             alt=""
             aria-hidden
             className="absolute inset-0 h-full w-full object-contain"
@@ -290,6 +297,28 @@ const GarageSidepanel = ({ car }: { car: CarItem }) => {
     })
   }
 
+  const [customError, setCustomError] = useState<string | null>(null)
+  const [customPending, customTransition] = useTransition()
+  const startCustomOrder = () => {
+    setCustomError(null)
+    customTransition(async () => {
+      try {
+        const res = await api.post<{ order: { id: string } }>('/remap-orders', {
+          carId: car.id,
+          isCustomQuote: true,
+          technicalData: {
+            description: `Atendimento personalizado aberto pela garagem · ${car.brand} ${car.model} ${car.year} (${car.motorType}). Cliente envia detalhes pelo chat.`,
+          },
+        })
+        router.push(`/pedido/${res.order.id}`)
+      } catch (err) {
+        setCustomError(
+          err instanceof Error ? err.message : 'Falha ao abrir atendimento.',
+        )
+      }
+    })
+  }
+
   return (
     <Card
       className="overflow-hidden border-tpc-red/50 p-0 shadow-[0_0_24px_rgba(225,38,28,0.13)]"
@@ -297,7 +326,7 @@ const GarageSidepanel = ({ car }: { car: CarItem }) => {
     >
       <div className="relative h-[180px]">
         <img
-          src="/sprites/car-neon.png"
+          src="/sprites/car-neon.webp"
           alt=""
           aria-hidden
           className="absolute inset-0 h-full w-full object-contain px-6"
@@ -418,6 +447,34 @@ const GarageSidepanel = ({ car }: { car: CarItem }) => {
               {isPending ? 'Ativando…' : 'Tornar ativo'}
             </Button>
           )}
+          {!car.activeOrder && (
+            <button
+              type="button"
+              onClick={startCustomOrder}
+              disabled={customPending}
+              className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-full border border-tpc-yellow/40 bg-tpc-yellow/10 px-4 py-2.5 text-[12px] font-semibold text-tpc-yellow transition hover:bg-tpc-yellow/15 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="M21 11.5a8.4 8.4 0 0 1-9 8.5 8.4 8.4 0 0 1-3.7-.8L3 21l1.5-4.7A8.4 8.4 0 0 1 12 3a8.4 8.4 0 0 1 9 8.5z" />
+              </svg>
+              {customPending ? 'Abrindo chat…' : 'Iniciar atendimento personalizado'}
+            </button>
+          )}
+          {customError && (
+            <div className="rounded-lg border border-tpc-red/40 bg-tpc-red/10 px-3 py-2 text-xs text-tpc-red">
+              {customError}
+            </div>
+          )}
           <div className="flex gap-2">
             <Button
               variant="secondary"
@@ -485,7 +542,7 @@ function GaragemEmpty({ onAdd }: { onAdd: () => void }) {
 
       <div className="relative mb-8 flex h-56 w-[420px] max-w-full items-center justify-center">
         <img
-          src="/sprites/car-neon.png"
+          src="/sprites/car-neon.webp"
           alt="Carro estilizado em neon"
           className="h-full w-full object-contain"
         />

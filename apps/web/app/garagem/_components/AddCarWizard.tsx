@@ -3,7 +3,8 @@
 import { useState, useTransition } from 'react'
 
 import { useApi } from '@/lib/api/client'
-import { type CreateCarBody, type MotorType, normalizePlate } from '@tpc/lib/validators'
+import { normalizePlate } from '@tpc/lib/formatters'
+import type { CreateCarBody, MotorType } from '@tpc/lib/validators'
 import { Button, Card, cn } from '@tpc/ui'
 
 const BRANDS: Array<{

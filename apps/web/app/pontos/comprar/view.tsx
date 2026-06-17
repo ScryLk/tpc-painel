@@ -201,43 +201,43 @@ function PackageCard({
       type="button"
       onClick={onSelect}
       className={cn(
-        'relative rounded-2xl p-4 text-left transition',
+        'relative cursor-pointer rounded-2xl border border-tpc-border bg-tpc-surface p-3.5 text-left transition',
         selected
-          ? 'border-2 border-tpc-red bg-tpc-elevated shadow-[0_0_0_4px_rgba(225,38,28,0.12),0_8px_24px_rgba(0,0,0,0.4)]'
-          : 'border border-tpc-border bg-tpc-surface hover:border-tpc-red/40',
+          ? 'bg-tpc-elevated ring-2 ring-tpc-red ring-offset-2 ring-offset-tpc-bg shadow-[0_8px_24px_rgba(0,0,0,0.4)]'
+          : 'hover:border-tpc-red/40',
       )}
     >
       {pkg.popular && (
-        <span className="absolute right-3 top-3 rounded bg-tpc-red px-1.5 py-0.5 font-mono text-[8px] font-bold tracking-[0.16em] text-tpc-text">
+        <span className="absolute -top-2 right-3 rounded bg-tpc-red px-1.5 py-0.5 font-mono text-[8px] font-bold tracking-[0.16em] text-tpc-text shadow-md shadow-tpc-red/30">
           MAIS ESCOLHIDO
         </span>
       )}
       {!pkg.popular && pkg.bonusPct > 0 && (
-        <span className="absolute right-3 top-3 rounded border border-tpc-green/40 bg-tpc-green/10 px-1.5 py-0.5 font-mono text-[9px] font-bold tracking-[0.12em] text-tpc-green">
+        <span className="absolute -top-2 right-3 rounded border border-tpc-green/40 bg-tpc-green/15 px-1.5 py-0.5 font-mono text-[9px] font-bold tracking-[0.12em] text-tpc-green backdrop-blur-sm">
           +{pkg.bonusPct}%
         </span>
       )}
 
       <div className="tpc-eyebrow !text-tpc-text-secondary">{pkg.name}</div>
 
-      <div className="mt-1 flex items-baseline gap-1.5">
-        <span className="tpc-num text-[36px] font-medium leading-none tracking-tight">
+      <div className="mt-0.5 flex items-baseline gap-1.5">
+        <span className="tpc-num text-[30px] font-medium leading-none tracking-tight">
           {formatPoints(pkg.points)}
         </span>
         <span className="text-[11px] text-tpc-text-secondary">pts</span>
       </div>
 
       {pkg.bonusPoints > 0 && (
-        <div className="mt-1.5 flex flex-wrap items-center gap-1 font-mono text-[10px] text-tpc-green">
+        <div className="mt-1 flex flex-wrap items-center gap-1 font-mono text-[10px] text-tpc-green">
           <span>+{formatPoints(pkg.bonusPoints)} bônus</span>
           <span className="text-tpc-text-tertiary">·</span>
           <span className="text-tpc-text">{formatPoints(total)} total</span>
         </div>
       )}
 
-      <div className="mt-3 border-t border-tpc-border pt-3">
+      <div className="mt-2.5 border-t border-tpc-border pt-2.5">
         <div className="tpc-eyebrow mb-0.5">Preço</div>
-        <div className="tpc-num text-[20px] font-semibold leading-none tracking-tight">
+        <div className="tpc-num whitespace-nowrap text-[18px] font-semibold leading-none tracking-tight">
           {formatBRL(pkg.priceCents)}
         </div>
       </div>

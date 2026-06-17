@@ -9,12 +9,14 @@ import {
   remapStatusSchema,
 } from '@tpc/lib/validators'
 
+import { queueEmailIfConsented, siteUrl } from '../emails/jobs.js'
 import {
   BusinessError,
   ConflictError,
   NotFoundError,
   UnauthorizedError,
 } from '../lib/errors.js'
+
 
 const idParamsSchema = z.object({ id: z.string().uuid() })
 
@@ -33,13 +35,11 @@ export const remapOrdersRoutes: FastifyPluginAsync = async (app) => {
 
     const body = createRemapOrderSchema.parse(request.body)
 
-    // Valida carro se foi passado (ownership)
-    if (body.carId) {
-      const car = await app.prisma.car.findFirst({
-        where: { id: body.carId, userId: user.id, deletedAt: null },
-      })
-      if (!car) throw new NotFoundError('Car')
-    }
+    // Valida ownership do carro. Zod já garantiu que carId existe.
+    const car = await app.prisma.car.findFirst({
+      where: { id: body.carId, userId: user.id, deletedAt: null },
+    })
+    if (!car) throw new NotFoundError('Car')
 
     // Fluxo custom: cria AWAITING_QUOTE sem reservar pts.
     if (body.isCustomQuote) {
@@ -55,7 +55,7 @@ export const remapOrdersRoutes: FastifyPluginAsync = async (app) => {
         data: {
           protocol,
           userId: user.id,
-          carId: body.carId ?? null,
+          carId: body.carId,
           remapServiceId: body.serviceId ?? null,
           status: 'AWAITING_QUOTE',
           isCustomQuote: true,
@@ -74,6 +74,31 @@ export const remapOrdersRoutes: FastifyPluginAsync = async (app) => {
           remapOrderId: order.id,
           senderType: 'SYSTEM',
           body: `Pedido ${order.protocol} criado. TPC vai analisar e orçar em até 24h.`,
+        },
+      })
+
+      await app.prisma.notification.create({
+        data: {
+          userId: user.id,
+          kind: 'INFO',
+          title: 'Pedido aberto',
+          body: `Atendimento personalizado #${order.protocol} aberto. TPC vai orçar em até 24h.`,
+          link: `/pedido/${order.id}`,
+          source: 'remap-order',
+        },
+      })
+
+      await queueEmailIfConsented(app.prisma, user.id, {
+        kind: 'orderCreated',
+        to: user.email,
+        props: {
+          siteUrl: siteUrl(),
+          customerName: user.name,
+          protocol: order.protocol,
+          serviceName: 'Atendimento personalizado',
+          isCustomQuote: true,
+          pointsReserved: 0,
+          orderUrl: `${siteUrl()}/pedido/${order.id}`,
         },
       })
 
@@ -139,7 +164,7 @@ export const remapOrdersRoutes: FastifyPluginAsync = async (app) => {
         data: {
           protocol,
           userId: user.id,
-          carId: body.carId ?? null,
+          carId: body.carId,
           remapServiceId: service.id,
           status: 'ANALYZING',
           isCustomQuote: false,
@@ -181,7 +206,32 @@ export const remapOrdersRoutes: FastifyPluginAsync = async (app) => {
         },
       })
 
-      return { order, reservation }
+      await tx.notification.create({
+        data: {
+          userId: user.id,
+          kind: 'INFO',
+          title: 'Pedido aberto',
+          body: `${service.name} · #${order.protocol}. ${service.pts} pts reservados.`,
+          link: `/pedido/${order.id}`,
+          source: 'remap-order',
+        },
+      })
+
+      return { order, reservation, service }
+    })
+
+    await queueEmailIfConsented(app.prisma, user.id, {
+      kind: 'orderCreated',
+      to: user.email,
+      props: {
+        siteUrl: siteUrl(),
+        customerName: user.name,
+        protocol: result.order.protocol,
+        serviceName: result.service.name,
+        isCustomQuote: false,
+        pointsReserved: result.order.pointsReserved,
+        orderUrl: `${siteUrl()}/pedido/${result.order.id}`,
+      },
     })
 
     return { order: shapeOrder(result.order) }
@@ -630,6 +680,17 @@ export const remapOrdersRoutes: FastifyPluginAsync = async (app) => {
           },
         })
 
+        await tx.notification.create({
+          data: {
+            userId: user.id,
+            kind: 'SUCCESS',
+            title: 'Pedido aprovado',
+            body: `Pedido #${order.protocol} aprovado. ${amount} pts debitados. Arquivo liberado pra baixar.`,
+            link: `/pedido/${order.id}`,
+            source: 'remap-order',
+          },
+        })
+
         return { order: updated, debited: amount }
       })
 
@@ -641,7 +702,10 @@ export const remapOrdersRoutes: FastifyPluginAsync = async (app) => {
     },
   )
 
-  // POST /remap-orders/:id/dev/simulate-tpc-reply — DEV ONLY
+  // POST /remap-orders/:id/dev/simulate-tpc-reply — DEV ONLY (com nota: nenhum
+  // email enviado em /approve pq o cliente já tá no app vendo o resultado.
+  // Push notification + a mensagem de sistema no chat são suficientes — não
+  // queimar inbox com algo que ele acabou de fazer.)
   // Simula TPC enviando arquivo modificado pra agilizar teste local sem
   // precisar de painel admin completo. Em prod, esse endpoint não existe
   // (guard por NODE_ENV). [TPC-DECISION] remover quando painel admin tiver
@@ -685,6 +749,16 @@ export const remapOrdersRoutes: FastifyPluginAsync = async (app) => {
               body: `Analisamos teu arquivo. Pra esse serviço fica em ${quotePoints} pts. Aceita?`,
             },
           })
+          await tx.notification.create({
+            data: {
+              userId: user.id,
+              kind: 'WARNING',
+              title: 'Orçamento recebido',
+              body: `TPC orçou #${order.protocol} em ${quotePoints} pts. Confira e aceite.`,
+              link: `/pedido/${id}`,
+              source: 'remap-order',
+            },
+          })
           return { order: updated, kind: 'quote' as const, quotePoints }
         }
 
@@ -719,6 +793,17 @@ export const remapOrdersRoutes: FastifyPluginAsync = async (app) => {
           },
         })
 
+        await tx.notification.create({
+          data: {
+            userId: user.id,
+            kind: 'EVENT',
+            title: 'Arquivo entregue',
+            body: `TPC entregou o arquivo modificado de #${order.protocol}. Confere e aprova.`,
+            link: `/pedido/${id}`,
+            source: 'remap-order',
+          },
+        })
+
         const updated = await tx.remapOrder.update({
           where: { id },
           data: {
@@ -727,8 +812,29 @@ export const remapOrdersRoutes: FastifyPluginAsync = async (app) => {
           },
         })
 
-        return { order: updated, kind: 'file' as const, fileId: file.id }
+        return {
+          order: updated,
+          kind: 'file' as const,
+          fileId: file.id,
+          serviceName: order.remapService?.name ?? 'Pedido personalizado',
+          pointsToDebit: order.pointsReserved,
+        }
       })
+
+      if (result.kind === 'file') {
+        await queueEmailIfConsented(app.prisma, user.id, {
+          kind: 'fileDelivered',
+          to: user.email,
+          props: {
+            siteUrl: siteUrl(),
+            customerName: user.name,
+            protocol: result.order.protocol,
+            serviceName: result.serviceName,
+            pointsToDebit: result.pointsToDebit,
+            orderUrl: `${siteUrl()}/pedido/${result.order.id}`,
+          },
+        })
+      }
 
       return { ok: true, ...result, order: { id: result.order.id, status: result.order.status } }
     },
